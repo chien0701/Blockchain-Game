@@ -58,24 +58,4 @@ export const determineWinner = (playerHand, dealerHand) => {
   return { winner: 'draw', reason: `平手 ${ps} 點` };
 };
 
-/** 儲存一局遊戲資料到 localStorage */
-export const saveGame = (data) => {
-  localStorage.setItem(`fairchain_${data.gameId}`, JSON.stringify(data));
-  const list = JSON.parse(localStorage.getItem('fairchain_games') || '[]');
-  list.unshift({
-    gameId: data.gameId,
-    ts: data.timestamp,
-    result: data.result?.winner,
-  });
-  localStorage.setItem('fairchain_games', JSON.stringify(list.slice(0, 20)));
-};
-
-/** 讀取一局遊戲資料 */
-export const loadGame = (gameId) => {
-  const raw = localStorage.getItem(`fairchain_${gameId}`);
-  return raw ? JSON.parse(raw) : null;
-};
-
-/** 讀取最近遊戲清單 */
-export const recentGames = () =>
-  JSON.parse(localStorage.getItem('fairchain_games') || '[]');
+// 遊戲資料的儲存／讀取已移至 src/utils/storage.js（集中管理 localStorage）

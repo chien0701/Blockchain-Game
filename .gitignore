@@ -1,0 +1,24 @@
+# 前端 build 產物
+dist/
+node_modules/
+
+# 環境變數（絕對不要上傳私鑰！）
+.env
+.env.local
+contracts/.env
+
+# Hardhat
+contracts/cache/
+contracts/artifacts/
+contracts/node_modules/
+contracts/typechain-types/
+
+# 編輯器
+.vscode/settings.json
+.DS_Store
+
+# 測試/截圖暫存
+.playwright-mcp/
+slots-result.png
+stats-check.png
+contracts/deployment.json

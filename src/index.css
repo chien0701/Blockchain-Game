@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,19 +7,63 @@
 * { box-sizing: border-box; }
 
 body {
-  background-color: #030712;
+  background-color: #04060c;
   color: white;
   min-height: 100vh;
   font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* 卡牌翻轉動畫 */
+/* ── 可重用工業風工具類 ────────────────────────────────── */
+
+/* 細網格背景（電光藍微光） */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(26, 92, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26, 92, 255, 0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* 文字發光 */
+.text-glow {
+  text-shadow: 0 0 12px rgba(26, 92, 255, 0.6);
+}
+
+/* 軍規數字標記，例如 001 / 002 */
+.mono-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 300;
+  letter-spacing: 0.15em;
+}
+
+/* 掃描線疊層（放在 position:relative 容器內）*/
+.scanline::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    rgba(26, 92, 255, 0) 0%,
+    rgba(26, 92, 255, 0.04) 50%,
+    rgba(26, 92, 255, 0) 100%
+  );
+  height: 40%;
+  animation: scan 3s linear infinite;
+  pointer-events: none;
+}
+
+/* ── 既有動畫（保留相容）────────────────────────────────── */
+
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in-up {
   animation: fadeInUp 0.4s ease-out forwards;
+}
+
+@keyframes scan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(250%); }
 }
 
 /* Loading 點點 */
@@ -28,3 +74,12 @@ body {
 .dot { animation: bounce 1.4s infinite ease-in-out both; }
 .dot:nth-child(1) { animation-delay: -0.32s; }
 .dot:nth-child(2) { animation-delay: -0.16s; }
+
+/* 尊重使用者的減少動態偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,14 @@
+# 絕對不要上傳的檔案
+.env
+
+# Hardhat 產生的快取與 artifacts
+cache/
+artifacts/
+
+# Node modules
+node_modules/
+
+# Coverage
+coverage/
+coverage.json
+typechain-types/

@@ -21,12 +21,12 @@ export default function StepBar({ currentPhase }) {
               <div className={`w-10 h-10 rounded-full flex items-center justify-center
                                font-bold text-sm border-2 transition-all
                 ${done    ? 'bg-emerald-500 border-emerald-500 text-white' : ''}
-                ${active  ? 'bg-indigo-600 border-indigo-400 text-white scale-110 shadow-lg shadow-indigo-800' : ''}
-                ${pending ? 'bg-gray-800 border-gray-700 text-gray-500' : ''}`}>
+                ${active  ? 'bg-electric-600 border-electric-400 text-white scale-110 shadow-lg shadow-electric-800' : ''}
+                ${pending ? 'bg-ink-800 border-gray-700 text-gray-500' : ''}`}>
                 {done ? '✓' : idx + 1}
               </div>
               <div className={`text-xs mt-1 font-medium
-                ${active  ? 'text-indigo-400' : ''}
+                ${active  ? 'text-electric-400' : ''}
                 ${done    ? 'text-emerald-400' : ''}
                 ${pending ? 'text-gray-600' : ''}`}>
                 {step.label}

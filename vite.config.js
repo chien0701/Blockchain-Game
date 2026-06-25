@@ -5,4 +5,15 @@ export default defineConfig({
   plugins: [react()],
   base: '/Blockchain-Game/',
   server: { port: 5173 },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          ethers: ['ethers'],
+          gsap: ['gsap', '@gsap/react'],
+          react: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
 });

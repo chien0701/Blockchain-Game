@@ -2,7 +2,7 @@
 
 > 以 21 點（Blackjack）為示範，透過 Commit-Reveal 雙盲機制與 Keccak256 密碼學，確保每一局線上遊戲的結果都由雙方共同決定，任何第三方都可以公開驗證，沒有人能單方面作弊。
 
-🌐 **線上展示網址**：[https://nimble05.github.io/Blockchain-Game/](https://nimble05.github.io/Blockchain-Game/)
+🌐 **線上展示網址**：[https://chien0701.github.io/Blockchain-Game](https://chien0701.github.io/Blockchain-Game)
 
 ---
 

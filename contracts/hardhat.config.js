@@ -16,7 +16,16 @@ module.exports = {
       url: "http://127.0.0.1:8545",
     },
 
-    // Arbitrum Sepolia 測試網
+    // Ethereum Sepolia 測試網
+    sepolia: {
+      url: process.env.SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com",
+      accounts: process.env.DEPLOYER_PRIVATE_KEY
+        ? [process.env.DEPLOYER_PRIVATE_KEY]
+        : [],
+      chainId: 11155111,
+    },
+
+    // Arbitrum Sepolia 測試網（保留備用）
     arbitrumSepolia: {
       url: process.env.ARB_SEPOLIA_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc",
       accounts: process.env.DEPLOYER_PRIVATE_KEY
@@ -26,9 +35,10 @@ module.exports = {
     },
   },
 
-  // Etherscan 驗證（Arbitrum Sepolia）
+  // Etherscan 原始碼驗證
   etherscan: {
     apiKey: {
+      sepolia: process.env.ETHERSCAN_API_KEY || "",
       arbitrumSepolia: process.env.ARBISCAN_API_KEY || "",
     },
     customChains: [

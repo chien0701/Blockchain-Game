@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useCommitReveal } from '../../hooks/useCommitReveal';
-import CommitRevealFlow from '../../components/CommitRevealFlow';
+import { useBetting } from '../../hooks/useBetting';
+import CommitRevealFlow, { BetAmountPicker, SettlementBanner } from '../../components/CommitRevealFlow';
 import { ResultBanner, CryptoProof, ResultActions } from '../../components/GameResult';
 import { rollDie, intFromHex } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
@@ -23,30 +23,33 @@ export default function Dice() {
 }
 
 function DiceRound({ onPlayAgain }) {
-  const cr = useCommitReveal();
-  const [mode, setMode] = useState('dice');
-  const [bet, setBet]   = useState(null);
+  const cr = useBetting();
+  const [mode, setMode]     = useState('dice');
+  const [bet, setBet]       = useState(null);
+  const [amount, setAmount] = useState('0.0005');
   const [gameId] = useState(() => newGameId());
   const [outcome, setOutcome] = useState(null);
   const saved = useRef(false);
+
+  const bets     = mode === 'dice' ? DICE_BETS : COIN_BETS;
+  const betIndex = bets.findIndex(b => b.id === bet);
 
   useEffect(() => {
     if (cr.phase !== 'ready' || !cr.finalRandom || saved.current) return;
     saved.current = true;
 
-    let win, faceText, resultNum;
+    let win, faceText, localOutcome;
     if (mode === 'dice') {
-      resultNum = rollDie(cr.finalRandom);
-      win = DICE_BETS.find(b => b.id === bet).test(resultNum);
-      faceText = `${['','⚀','⚁','⚂','⚃','⚄','⚅'][resultNum]} ${resultNum} 點`;
+      localOutcome = rollDie(cr.finalRandom);
+      win = DICE_BETS.find(b => b.id === bet).test(localOutcome);
+      faceText = `${['','⚀','⚁','⚂','⚃','⚄','⚅'][localOutcome]} ${localOutcome} 點`;
     } else {
-      const coin = intFromHex(cr.finalRandom, 0, 4) % 2;
-      resultNum = coin;
-      const side = coin === 0 ? 'heads' : 'tails';
-      win = bet === side;
-      faceText = coin === 0 ? '正面 🙂' : '反面 ⛓️';
+      localOutcome = intFromHex(cr.finalRandom, 0, 4) % 2;
+      win = bet === (localOutcome === 0 ? 'heads' : 'tails');
+      faceText = localOutcome === 0 ? '正面 🙂' : '反面 ⛓️';
     }
-    setOutcome({ win, faceText, resultNum });
+    const consistent = cr.settlement ? cr.settlement.outcome === localOutcome : null;
+    setOutcome({ win, faceText, localOutcome, consistent });
 
     saveGame({
       gameId, gameType: 'dice', chainGameId: cr.chainGameId,
@@ -55,12 +58,12 @@ function DiceRound({ onPlayAgain }) {
       playerCommit: cr.playerCommit, dealerCommit: cr.dealerCommit,
       finalRandom: cr.finalRandom,
       result: { winner: win ? 'player' : 'dealer', reason: `${mode === 'dice' ? '骰子' : '硬幣'}：${faceText}` },
+      betAmount: cr.isBetting ? amount : null,
+      payout: cr.settlement?.payoutEth ?? null,
       commitTxHash: cr.commitTxHash, revealTxHash: cr.revealTxHash,
       timestamp: new Date().toISOString(),
     });
   }, [cr.phase]);
-
-  const bets = mode === 'dice' ? DICE_BETS : COIN_BETS;
 
   const betSlot = (
     <div className="bg-ink-850 border border-electric-900/40 rounded-2xl p-4 space-y-3">
@@ -83,17 +86,34 @@ function DiceRound({ onPlayAgain }) {
           </button>
         ))}
       </div>
+      {cr.isBetting && <BetAmountPicker value={amount} onChange={setAmount} />}
     </div>
   );
 
+  const crForFlow = {
+    ...cr,
+    commit: () => cr.commit({
+      gameType: mode === 'dice' ? 0 : 1,
+      betType: betIndex,
+      betValue: 0,
+      amountEth: amount,
+    }),
+  };
+
   return (
-    <CommitRevealFlow cr={cr} title="骰子 / 猜硬幣" revealLabel="開獎" betSlot={betSlot} canCommit={!!bet}>
+    <CommitRevealFlow cr={crForFlow} title="骰子 / 猜硬幣" revealLabel="開獎" betSlot={betSlot} canCommit={!!bet}>
       {outcome && (
         <div className="space-y-6 animate-fade-in-up">
           <ResultBanner win={outcome.win} title={outcome.win ? '猜中了！' : '沒猜中'} sub={`開出 ${outcome.faceText}`} />
+          {cr.isBetting && <SettlementBanner settlement={cr.settlement} amountEth={amount} />}
           <div className="bg-emerald-950 border border-emerald-900 rounded-2xl p-10 text-center">
             <div className="text-7xl mb-2">{outcome.faceText.split(' ')[0]}</div>
-            <div className="text-gray-400 text-sm">你押：{(mode === 'dice' ? DICE_BETS : COIN_BETS).find(b => b.id === bet)?.label}</div>
+            <div className="text-gray-400 text-sm">你押：{bets.find(b => b.id === bet)?.label}</div>
+            {outcome.consistent !== null && (
+              <div className={`text-xs mt-3 ${outcome.consistent ? 'text-emerald-400' : 'text-red-400'}`}>
+                {outcome.consistent ? '✅ 合約判定結果與本地重算完全一致' : '🚨 合約結果與本地重算不一致！'}
+              </div>
+            )}
           </div>
           <CryptoProof finalRandom={cr.finalRandom} chainGameId={cr.chainGameId}
             commitTxHash={cr.commitTxHash} revealTxHash={cr.revealTxHash} />

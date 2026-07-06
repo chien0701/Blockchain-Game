@@ -13,7 +13,10 @@ import { ethers } from 'ethers';
 import {
   CONTRACT_ADDRESS,
   CONTRACT_ABI,
+  FAIRBET_ADDRESS,
+  FAIRBET_ABI,
   IS_ON_CHAIN,
+  IS_BETTING,
   SUPPORTED_CHAIN_ID,
   CURRENT_CHAIN,
 } from '../config/contractConfig';
@@ -83,7 +86,7 @@ export async function switchNetwork() {
     });
   } catch (err) {
     // 4902 = 網路不存在，嘗試加入
-    if (err.code === 4902 && SUPPORTED_CHAIN_ID === 421614) {
+    if (err.code === 4902 && CURRENT_CHAIN.rpcUrl) {
       await window.ethereum.request({
         method: 'wallet_addEthereumChain',
         params: [{
@@ -215,4 +218,59 @@ export function getTxUrl(txHash) {
 export function getContractUrl() {
   if (!IS_ON_CHAIN || !CURRENT_CHAIN.explorerUrl) return '';
   return `${CURRENT_CHAIN.explorerUrl}/address/${CONTRACT_ADDRESS}`;
+}
+
+// ─── FairBet 鏈上下注 ─────────────────────────────────────────────────────────
+
+function getFairBet(signerOrProvider) {
+  if (!IS_BETTING) throw new Error('FairBet 地址未設定，請在 .env 設定 VITE_FAIRBET_ADDRESS');
+  return new ethers.Contract(FAIRBET_ADDRESS, FAIRBET_ABI, signerOrProvider);
+}
+
+/**
+ * 下注 + 提交承諾（一筆 payable 交易）
+ * @param {object} p { gameType, betType, betValue, amountEth, playerCommit, dealerCommit }
+ * @returns {{ betId: string, txHash: string }}
+ */
+export async function placeBetOnChain(signer, p) {
+  const fb = getFairBet(signer);
+  const tx = await fb.placeBet(
+    p.gameType, p.betType, p.betValue ?? 0,
+    p.playerCommit, p.dealerCommit,
+    { value: ethers.parseEther(p.amountEth) },
+  );
+  const receipt = await tx.wait(1);
+  const args = parseEvent(fb, receipt, 'BetPlaced');
+  if (!args) throw new Error('找不到 BetPlaced event');
+  return { betId: args.betId.toString(), txHash: receipt.hash };
+}
+
+/**
+ * 揭露種子 → 合約判定輸贏並自動賠付
+ * @returns {{ finalRandom, won, outcome, payoutEth, txHash }}
+ */
+export async function settleBetOnChain(signer, betId, playerSeed, playerSalt, dealerSeed, dealerSalt) {
+  const fb = getFairBet(signer);
+  const tx = await fb.settleBet(BigInt(betId), playerSeed, playerSalt, dealerSeed, dealerSalt);
+  const receipt = await tx.wait(1);
+  const args = parseEvent(fb, receipt, 'BetSettled');
+  if (!args) throw new Error('找不到 BetSettled event');
+  return {
+    finalRandom: args.finalRandom,
+    won:         args.won,
+    outcome:     Number(args.outcome),
+    payoutEth:   ethers.formatEther(args.payout),
+    txHash:      receipt.hash,
+  };
+}
+
+/** 查詢莊家資金池餘額（ETH 字串） */
+export async function getPoolBalance(provider) {
+  const fb = getFairBet(provider);
+  return ethers.formatEther(await fb.poolBalance());
+}
+
+export function getFairBetUrl() {
+  if (!IS_BETTING || !CURRENT_CHAIN.explorerUrl) return '';
+  return `${CURRENT_CHAIN.explorerUrl}/address/${FAIRBET_ADDRESS}`;
 }

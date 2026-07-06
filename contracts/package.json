@@ -6,7 +6,8 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost",
-    "deploy:sepolia": "hardhat run scripts/deploy.js --network arbitrumSepolia",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "deploy:arbitrum": "hardhat run scripts/deploy.js --network arbitrumSepolia",
     "node": "hardhat node"
   },
   "devDependencies": {

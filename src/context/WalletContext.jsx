@@ -99,7 +99,7 @@ export function WalletProvider({ children }) {
       });
     } catch (err) {
       // 4902 = 網路不存在，嘗試加入
-      if (err.code === 4902 && SUPPORTED_CHAIN_ID === 421614) {
+      if (err.code === 4902 && CURRENT_CHAIN.rpcUrl) {
         await window.ethereum.request({
           method: 'wallet_addEthereumChain',
           params: [{

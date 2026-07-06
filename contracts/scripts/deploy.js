@@ -6,7 +6,6 @@ async function main() {
   console.log(`\n🚀 部署到網路：${network.name}`);
   console.log("─".repeat(50));
 
-  // ── 取得部署者 ──────────────────────────────────────────
   const [deployer] = await ethers.getSigners();
   console.log(`📬 部署者地址：${deployer.address}`);
 
@@ -18,56 +17,74 @@ async function main() {
     process.exit(1);
   }
 
-  // ── 部署合約 ────────────────────────────────────────────
+  // ── 1. GameCommitReveal（公平驗證：21點 / Mastermind）──────
   console.log("\n📦 部署 GameCommitReveal...");
-  const Factory  = await ethers.getContractFactory("GameCommitReveal");
-  const contract = await Factory.deploy();
-  await contract.waitForDeployment();
+  const CR = await ethers.getContractFactory("GameCommitReveal");
+  const cr = await CR.deploy();
+  await cr.waitForDeployment();
+  const crAddress = await cr.getAddress();
+  console.log(`✅ GameCommitReveal：${crAddress}`);
 
-  const address = await contract.getAddress();
-  console.log(`✅ 合約已部署：${address}`);
+  // ── 2. FairBet（鏈上下注：骰子 / 硬幣 / 輪盤 / 拉霸）────────
+  console.log("\n📦 部署 FairBet...");
+  const FB = await ethers.getContractFactory("FairBet");
+  const fb = await FB.deploy();
+  await fb.waitForDeployment();
+  const fbAddress = await fb.getAddress();
+  console.log(`✅ FairBet：${fbAddress}`);
 
-  // ── 取得部署交易資訊 ────────────────────────────────────
-  const deployTx      = contract.deploymentTransaction();
-  const deployReceipt = await deployTx.wait();
-  console.log(`📋 交易 Hash：${deployTx.hash}`);
-  console.log(`⛽ Gas 使用：${deployReceipt.gasUsed.toString()}`);
-  console.log(`🔢 區塊高度：${deployReceipt.blockNumber}`);
+  // ── 3. 注入莊家資金池 ────────────────────────────────────────
+  const defaultFund = network.name === "localhost" ? "5" : "0.03";
+  const fundAmount  = ethers.parseEther(process.env.POOL_FUND || defaultFund);
 
-  // ── 部署後驗證：呼叫 gameCount() 確認合約可用 ───────────
-  const gameCount = await contract.gameCount();
-  console.log(`\n🔍 驗證：gameCount = ${gameCount} (應為 0)`);
-  if (gameCount !== 0n) {
+  console.log(`\n💵 注入資金池 ${ethers.formatEther(fundAmount)} ETH...`);
+  const fundTx = await deployer.sendTransaction({ to: fbAddress, value: fundAmount });
+  await fundTx.wait();
+  console.log(`✅ 資金池餘額：${ethers.formatEther(await fb.poolBalance())} ETH`);
+
+  // ── 4. 部署後驗證 ────────────────────────────────────────────
+  const gameCount = await cr.gameCount();
+  const betCount  = await fb.betCount();
+  if (gameCount !== 0n || betCount !== 0n) {
     console.error("❌ 合約狀態異常");
     process.exit(1);
   }
-  console.log("✅ 合約驗證通過");
+  console.log("✅ 合約驗證通過（gameCount=0, betCount=0）");
 
-  // ── 將部署資訊寫入 deployment.json ─────────────────────
+  // ── 5. 寫入 deployment.json ─────────────────────────────────
   const deploymentInfo = {
-    network:         network.name,
-    chainId:         (await ethers.provider.getNetwork()).chainId.toString(),
-    contractAddress: address,
-    deployer:        deployer.address,
-    txHash:          deployTx.hash,
-    blockNumber:     deployReceipt.blockNumber,
-    deployedAt:      new Date().toISOString(),
+    network:            network.name,
+    chainId:            (await ethers.provider.getNetwork()).chainId.toString(),
+    commitRevealAddress: crAddress,
+    fairBetAddress:      fbAddress,
+    poolFund:            ethers.formatEther(fundAmount),
+    deployer:            deployer.address,
+    deployedAt:          new Date().toISOString(),
   };
+  fs.writeFileSync(
+    path.join(__dirname, "..", "deployment.json"),
+    JSON.stringify(deploymentInfo, null, 2)
+  );
+  console.log("\n📝 部署資訊已儲存至 contracts/deployment.json");
 
-  const outPath = path.join(__dirname, "..", "deployment.json");
-  fs.writeFileSync(outPath, JSON.stringify(deploymentInfo, null, 2));
-  console.log(`\n📝 部署資訊已儲存至：contracts/deployment.json`);
-
-  // ── 同步更新前端設定提示 ────────────────────────────────
+  // ── 6. 前端設定提示 ──────────────────────────────────────────
   console.log("\n" + "─".repeat(50));
-  console.log("📌 請將以下資訊更新至前端：");
-  console.log(`   合約地址：${address}`);
-  console.log(`   網路：${network.name} (chainId: ${deploymentInfo.chainId})`);
+  console.log("📌 請將以下內容填入專案根目錄 .env：");
+  console.log(`   VITE_CONTRACT_ADDRESS=${crAddress}`);
+  console.log(`   VITE_FAIRBET_ADDRESS=${fbAddress}`);
+  console.log(`   VITE_CHAIN_ID=${deploymentInfo.chainId}`);
 
-  if (network.name === "arbitrumSepolia") {
-    console.log(`\n🔗 Arbiscan：https://sepolia.arbiscan.io/address/${address}`);
-    console.log("\n💡 若要驗證合約原始碼，執行：");
-    console.log(`   npx hardhat verify --network arbitrumSepolia ${address}`);
+  const explorers = {
+    sepolia:         "https://sepolia.etherscan.io",
+    arbitrumSepolia: "https://sepolia.arbiscan.io",
+  };
+  const explorer = explorers[network.name];
+  if (explorer) {
+    console.log(`\n🔗 GameCommitReveal：${explorer}/address/${crAddress}`);
+    console.log(`🔗 FairBet：${explorer}/address/${fbAddress}`);
+    console.log("\n💡 驗證合約原始碼：");
+    console.log(`   npx hardhat verify --network ${network.name} ${crAddress}`);
+    console.log(`   npx hardhat verify --network ${network.name} ${fbAddress}`);
   }
 
   console.log("\n✨ 部署完成！\n");

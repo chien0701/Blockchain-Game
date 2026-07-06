@@ -23,6 +23,42 @@ function Loader({ text, url }) {
   );
 }
 
+const AMOUNTS = ['0.0001', '0.0005', '0.001'];
+
+export function BetAmountPicker({ value, onChange }) {
+  return (
+    <div className="flex items-center gap-2 pt-1">
+      <span className="text-sm text-gray-500 shrink-0">💰 注金</span>
+      <div className="flex gap-2 flex-1">
+        {AMOUNTS.map((a) => (
+          <button key={a} onClick={() => onChange(a)}
+            className={`flex-1 rounded-lg py-2 text-xs font-mono font-semibold border transition-all
+              ${value === a ? 'bg-electric-600 border-electric-400 text-white shadow-glow-sm'
+                : 'bg-ink-800 border-gray-700 text-gray-300 hover:border-electric-700'}`}>
+            {a} ETH
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function SettlementBanner({ settlement, amountEth }) {
+  if (!settlement) return null;
+  return settlement.won ? (
+    <div className="bg-emerald-950/50 border border-emerald-700 rounded-xl p-4 text-center">
+      <span className="text-emerald-300 font-bold text-lg">
+        💰 合約已賠付 {settlement.payoutEth} ETH 至你的錢包
+      </span>
+      <div className="text-xs text-emerald-500 mt-1">下注 {amountEth} ETH → 淨賺 {(Number(settlement.payoutEth) - Number(amountEth)).toFixed(4)} ETH</div>
+    </div>
+  ) : (
+    <div className="bg-red-950/40 border border-red-800 rounded-xl p-4 text-center">
+      <span className="text-red-300 font-bold text-lg">💸 注金 {amountEth} ETH 已進入莊家資金池</span>
+    </div>
+  );
+}
+
 export function ErrorBox({ message, onDismiss }) {
   if (!message) return null;
   return (
@@ -62,7 +98,9 @@ export default function CommitRevealFlow({ cr, title, revealLabel = '揭露並�
             <p className="text-gray-400 mt-1 text-sm">雙方種子承諾將被永久寫入區塊鏈，無法事後竄改</p>
           </div>
 
-          {onChain
+          {cr.isBetting
+            ? <div className="bg-electric-950/50 border border-electric-700 rounded-xl px-4 py-2.5 text-sm text-electric-300">🎰 真實下注模式 — 注金將實際進出 FairBet 合約，贏了自動賠付</div>
+            : onChain
             ? <div className="bg-emerald-950/40 border border-emerald-800 rounded-xl px-4 py-2.5 text-sm text-emerald-300">⛓️ 真實上鏈模式</div>
             : <div className="bg-amber-950/40 border border-amber-800 rounded-xl px-4 py-2.5 text-sm text-amber-300">🎭 {isMock ? '模擬模式（無 MetaMask）' : '模擬模式（未設定合約地址）'}</div>}
 

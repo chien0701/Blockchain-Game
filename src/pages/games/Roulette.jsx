@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useCommitReveal } from '../../hooks/useCommitReveal';
-import CommitRevealFlow from '../../components/CommitRevealFlow';
+import { useBetting } from '../../hooks/useBetting';
+import CommitRevealFlow, { BetAmountPicker, SettlementBanner } from '../../components/CommitRevealFlow';
 import { ResultBanner, CryptoProof, ResultActions } from '../../components/GameResult';
 import { mapRange } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
@@ -24,14 +24,16 @@ export default function Roulette() {
 }
 
 function RouletteRound({ onPlayAgain }) {
-  const cr = useCommitReveal();
-  const [bet, setBet]     = useState(null);
-  const [num, setNum]     = useState('');
+  const cr = useBetting();
+  const [bet, setBet]       = useState(null);
+  const [num, setNum]       = useState('');
+  const [amount, setAmount] = useState('0.0005');
   const [gameId] = useState(() => newGameId());
   const [outcome, setOutcome] = useState(null);
   const saved = useRef(false);
 
-  const hasBet = bet !== null || (num !== '' && Number(num) >= 0 && Number(num) <= 36);
+  const isNumberBet = num !== '' && Number(num) >= 0 && Number(num) <= 36;
+  const hasBet = bet !== null || isNumberBet;
 
   useEffect(() => {
     if (cr.phase !== 'ready' || !cr.finalRandom || saved.current) return;
@@ -39,10 +41,12 @@ function RouletteRound({ onPlayAgain }) {
 
     const result = mapRange(cr.finalRandom, 0, 4, 37);
     let win, betLabel;
-    if (num !== '') { win = Number(num) === result; betLabel = `號碼 ${num}`; }
+    if (isNumberBet) { win = Number(num) === result; betLabel = `號碼 ${num}（30倍）`; }
     else { const b = BETS.find(x => x.id === bet); win = b.test(result); betLabel = b.label; }
 
-    setOutcome({ result, win, betLabel, color: colorOf(result) });
+    const consistent = cr.settlement ? cr.settlement.outcome === result : null;
+    setOutcome({ result, win, betLabel, color: colorOf(result), consistent });
+
     saveGame({
       gameId, gameType: 'roulette', chainGameId: cr.chainGameId,
       playerSeed: cr.playerSeed, playerSalt: cr.playerSalt,
@@ -50,6 +54,8 @@ function RouletteRound({ onPlayAgain }) {
       playerCommit: cr.playerCommit, dealerCommit: cr.dealerCommit,
       finalRandom: cr.finalRandom,
       result: { winner: win ? 'player' : 'dealer', reason: `輪盤開出 ${result}` },
+      betAmount: cr.isBetting ? amount : null,
+      payout: cr.settlement?.payoutEth ?? null,
       commitTxHash: cr.commitTxHash, revealTxHash: cr.revealTxHash,
       timestamp: new Date().toISOString(),
     });
@@ -68,22 +74,34 @@ function RouletteRound({ onPlayAgain }) {
         ))}
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-500">或押單一號碼</span>
+        <span className="text-sm text-gray-500">或押單一號碼（30倍）</span>
         <input type="number" min="0" max="36" value={num}
           onChange={e => { setNum(e.target.value); setBet(null); }}
           placeholder="0-36"
           className="w-24 bg-ink-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm outline-none focus:border-electric-500" />
       </div>
+      {cr.isBetting && <BetAmountPicker value={amount} onChange={setAmount} />}
     </div>
   );
+
+  const crForFlow = {
+    ...cr,
+    commit: () => cr.commit({
+      gameType: 2,
+      betType: isNumberBet ? 6 : BETS.findIndex(b => b.id === bet),
+      betValue: isNumberBet ? Number(num) : 0,
+      amountEth: amount,
+    }),
+  };
 
   const dotColor = { red: 'bg-red-600', black: 'bg-gray-900', green: 'bg-emerald-600' };
 
   return (
-    <CommitRevealFlow cr={cr} title="輪盤" revealLabel="轉動輪盤" betSlot={betSlot} canCommit={hasBet}>
+    <CommitRevealFlow cr={crForFlow} title="輪盤" revealLabel="轉動輪盤" betSlot={betSlot} canCommit={hasBet}>
       {outcome && (
         <div className="space-y-6 animate-fade-in-up">
           <ResultBanner win={outcome.win} title={outcome.win ? '中獎！' : '槓龜'} sub={`你押：${outcome.betLabel}`} />
+          {cr.isBetting && <SettlementBanner settlement={cr.settlement} amountEth={amount} />}
           <div className="bg-emerald-950 border border-emerald-900 rounded-2xl p-10 flex flex-col items-center gap-3">
             <div className={`w-28 h-28 rounded-full flex items-center justify-center text-5xl font-extrabold text-white
                             border-4 border-white/20 ${dotColor[outcome.color]}`}>
@@ -92,6 +110,11 @@ function RouletteRound({ onPlayAgain }) {
             <div className="mono-tag text-xs text-gray-400 uppercase">
               {outcome.color === 'red' ? '紅 RED' : outcome.color === 'black' ? '黑 BLACK' : '綠 ZERO'}
             </div>
+            {outcome.consistent !== null && (
+              <div className={`text-xs ${outcome.consistent ? 'text-emerald-400' : 'text-red-400'}`}>
+                {outcome.consistent ? '✅ 合約判定結果與本地重算完全一致' : '🚨 合約結果與本地重算不一致！'}
+              </div>
+            )}
           </div>
           <CryptoProof finalRandom={cr.finalRandom} chainGameId={cr.chainGameId}
             commitTxHash={cr.commitTxHash} revealTxHash={cr.revealTxHash} />

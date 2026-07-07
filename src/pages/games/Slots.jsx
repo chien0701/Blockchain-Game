@@ -4,7 +4,7 @@ import CommitRevealFlow, { BetAmountPicker, SettlementBanner } from '../../compo
 import { ResultBanner, CryptoProof, ResultActions } from '../../components/GameResult';
 import { mapRange } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
-import { saveGame } from '../../utils/storage';
+import { saveGame, getPref, setPref } from '../../utils/storage';
 
 const SYMBOLS = ['🍒', '🍋', '🔔', '⭐', '💎', '7️⃣'];
 
@@ -15,7 +15,7 @@ export default function Slots() {
 
 function SlotsRound({ onPlayAgain }) {
   const cr = useBetting();
-  const [amount, setAmount] = useState('0.0005');
+  const [amount, setAmount] = useState(() => getPref('bet_slots', {}).amount ?? '0.0005');
   const [gameId] = useState(() => newGameId());
   const [outcome, setOutcome] = useState(null);
   const saved = useRef(false);
@@ -56,9 +56,14 @@ function SlotsRound({ onPlayAgain }) {
     </div>
   ) : null;
 
+  const betParams = () => {
+    setPref('bet_slots', { amount });
+    return { gameType: 3, betType: 0, betValue: 0, amountEth: amount };
+  };
   const crForFlow = {
     ...cr,
-    commit: () => cr.commit({ gameType: 3, betType: 0, betValue: 0, amountEth: amount }),
+    commit:    () => cr.commit(betParams()),
+    quickPlay: () => cr.quickPlay(betParams()),
   };
 
   return (

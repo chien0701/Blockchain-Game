@@ -4,7 +4,7 @@ import CommitRevealFlow, { BetAmountPicker, SettlementBanner } from '../../compo
 import { ResultBanner, CryptoProof, ResultActions } from '../../components/GameResult';
 import { rollDie, intFromHex } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
-import { saveGame } from '../../utils/storage';
+import { saveGame, getPref, setPref } from '../../utils/storage';
 
 const DICE_BETS = [
   { id: 'big',   label: '大 (4-6)', test: (r) => r >= 4 },
@@ -24,9 +24,10 @@ export default function Dice() {
 
 function DiceRound({ onPlayAgain }) {
   const cr = useBetting();
-  const [mode, setMode]     = useState('dice');
-  const [bet, setBet]       = useState(null);
-  const [amount, setAmount] = useState('0.0005');
+  const last = getPref('bet_dice', {});
+  const [mode, setMode]     = useState(last.mode ?? 'dice');
+  const [bet, setBet]       = useState(last.bet ?? null);
+  const [amount, setAmount] = useState(last.amount ?? '0.0005');
   const [gameId] = useState(() => newGameId());
   const [outcome, setOutcome] = useState(null);
   const saved = useRef(false);
@@ -90,14 +91,14 @@ function DiceRound({ onPlayAgain }) {
     </div>
   );
 
+  const betParams = () => {
+    setPref('bet_dice', { mode, bet, amount });
+    return { gameType: mode === 'dice' ? 0 : 1, betType: betIndex, betValue: 0, amountEth: amount };
+  };
   const crForFlow = {
     ...cr,
-    commit: () => cr.commit({
-      gameType: mode === 'dice' ? 0 : 1,
-      betType: betIndex,
-      betValue: 0,
-      amountEth: amount,
-    }),
+    commit:    () => cr.commit(betParams()),
+    quickPlay: () => cr.quickPlay(betParams()),
   };
 
   return (

@@ -4,7 +4,7 @@ import CommitRevealFlow, { BetAmountPicker, SettlementBanner } from '../../compo
 import { ResultBanner, CryptoProof, ResultActions } from '../../components/GameResult';
 import { mapRange } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
-import { saveGame } from '../../utils/storage';
+import { saveGame, getPref, setPref } from '../../utils/storage';
 
 const RED = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
 const colorOf = (n) => n === 0 ? 'green' : RED.has(n) ? 'red' : 'black';
@@ -25,9 +25,10 @@ export default function Roulette() {
 
 function RouletteRound({ onPlayAgain }) {
   const cr = useBetting();
-  const [bet, setBet]       = useState(null);
-  const [num, setNum]       = useState('');
-  const [amount, setAmount] = useState('0.0005');
+  const last = getPref('bet_roulette', {});
+  const [bet, setBet]       = useState(last.bet ?? null);
+  const [num, setNum]       = useState(last.num ?? '');
+  const [amount, setAmount] = useState(last.amount ?? '0.0005');
   const [gameId] = useState(() => newGameId());
   const [outcome, setOutcome] = useState(null);
   const saved = useRef(false);
@@ -84,14 +85,19 @@ function RouletteRound({ onPlayAgain }) {
     </div>
   );
 
-  const crForFlow = {
-    ...cr,
-    commit: () => cr.commit({
+  const betParams = () => {
+    setPref('bet_roulette', { bet, num, amount });
+    return {
       gameType: 2,
       betType: isNumberBet ? 6 : BETS.findIndex(b => b.id === bet),
       betValue: isNumberBet ? Number(num) : 0,
       amountEth: amount,
-    }),
+    };
+  };
+  const crForFlow = {
+    ...cr,
+    commit:    () => cr.commit(betParams()),
+    quickPlay: () => cr.quickPlay(betParams()),
   };
 
   const dotColor = { red: 'bg-red-600', black: 'bg-gray-900', green: 'bg-emerald-600' };

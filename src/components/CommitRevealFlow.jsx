@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import StepBar from './StepBar';
 import { shortenHash } from '../utils/crypto';
 import { getTxUrl } from '../utils/contract';
+import { getPref, setPref } from '../utils/storage';
 
 function HashBox({ label, value, hidden }) {
   return (
@@ -82,6 +84,10 @@ export default function CommitRevealFlow({ cr, title, revealLabel = '揭露並�
     commit, reveal,
   } = cr;
 
+  const [quick, setQuick] = useState(() => getPref('quickMode', true));
+  const toggleQuick = (v) => { setQuick(v); setPref('quickMode', v); };
+  const useQuick = quick && typeof cr.quickPlay === 'function';
+
   const stepPhase = phase === 'ready' ? 'play' : phase;
 
   return (
@@ -119,11 +125,28 @@ export default function CommitRevealFlow({ cr, title, revealLabel = '揭露並�
             </div>
           </div>
 
-          <button onClick={commit} disabled={isWrongNetwork || !canCommit}
+          {typeof cr.quickPlay === 'function' && (
+            <div className="flex justify-center gap-1 bg-ink-900 border border-electric-900/40 rounded-xl p-1 w-fit mx-auto">
+              <button onClick={() => toggleQuick(true)}
+                className={`rounded-lg px-4 py-1.5 text-xs font-semibold transition-colors
+                  ${quick ? 'bg-electric-700 text-white' : 'text-gray-500 hover:text-white'}`}>
+                ⚡ 快速
+              </button>
+              <button onClick={() => toggleQuick(false)}
+                className={`rounded-lg px-4 py-1.5 text-xs font-semibold transition-colors
+                  ${!quick ? 'bg-electric-700 text-white' : 'text-gray-500 hover:text-white'}`}>
+                🔬 詳細（教學）
+              </button>
+            </div>
+          )}
+
+          <button onClick={useQuick ? cr.quickPlay : commit} disabled={isWrongNetwork || !canCommit}
             className={`w-full font-bold rounded-2xl py-4 text-lg transition-all
               ${isWrongNetwork || !canCommit ? 'bg-ink-800 text-gray-500 cursor-not-allowed'
                 : 'bg-electric-600 hover:bg-electric-500 text-white hover:scale-[1.02] shadow-glow-sm hover:shadow-glow'}`}>
-            {isWrongNetwork ? '⚠️ 請先切換至正確網路' : !canCommit ? '請先完成下注' : '🔒 提交承諾至區塊鏈'}
+            {isWrongNetwork ? '⚠️ 請先切換至正確網路'
+              : !canCommit ? '請先完成下注'
+              : useQuick ? '⚡ 下注並直接開獎' : '🔒 提交承諾至區塊鏈'}
           </button>
         </div>
       ) : phase === 'reveal' ? (

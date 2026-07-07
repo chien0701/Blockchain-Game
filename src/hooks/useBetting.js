@@ -72,7 +72,7 @@ export function useBetting() {
         setChainGameId(cid); setCommitTxHash(txHash);
       } else {
         setLoadMsg('🎭 模擬寫入區塊鏈…');
-        await new Promise(r => setTimeout(r, 1200));
+        await new Promise(r => setTimeout(r, 500));
         setCommitTxHash(mockTxHash());
       }
       setPhase('reveal');
@@ -103,9 +103,55 @@ export function useBetting() {
         setRevealTxHash(txHash); combined = fr;
       } else {
         setLoadMsg('🎭 驗證雜湊並計算最終隨機數…');
-        await new Promise(r => setTimeout(r, 1200));
+        await new Promise(r => setTimeout(r, 500));
         combined = combineSeeds(playerSeed, dealerSeed);
         setRevealTxHash(mockTxHash());
+      }
+      setFinalRandom(combined);
+      setPhase('ready');
+      return combined;
+    } catch (err) {
+      setError(parseError(err));
+      return null;
+    } finally { setLoading(false); setLoadUrl(''); }
+  };
+
+  /** ⚡ 快速模式：commit + reveal 一鍵連發，中間不停頓 */
+  const quickPlay = async (params) => {
+    setError(''); setLoading(true);
+    try {
+      let combined;
+      if (mode === 'bet') {
+        setBetParams(params);
+        setLoadMsg(`📡 1/2 下注 ${params.amountEth} ETH 上鏈中…`);
+        const signer = await getSigner();
+        const r1 = await placeBetOnChain(signer, { ...params, playerCommit, dealerCommit });
+        setChainGameId(r1.betId); setCommitTxHash(r1.txHash);
+
+        setLoadMsg('🎲 2/2 揭露種子，合約結算中…');
+        const r2 = await settleBetOnChain(
+          signer, r1.betId, playerSeed, playerSalt, dealerSeed, dealerSalt,
+        );
+        setRevealTxHash(r2.txHash);
+        setSettlement({ won: r2.won, outcome: r2.outcome, payoutEth: r2.payoutEth });
+        combined = r2.finalRandom;
+      } else if (mode === 'plain') {
+        setLoadMsg('📡 1/2 承諾上鏈中…');
+        const signer = await getSigner();
+        const r1 = await contractCommit(signer, playerCommit, dealerCommit);
+        setChainGameId(r1.chainGameId); setCommitTxHash(r1.txHash);
+
+        setLoadMsg('🎲 2/2 揭露並計算隨機數…');
+        const r2 = await contractReveal(
+          signer, r1.chainGameId, playerSeed, playerSalt, dealerSeed, dealerSalt,
+        );
+        setRevealTxHash(r2.txHash);
+        combined = r2.finalRandom;
+      } else {
+        setLoadMsg('🎭 快速開獎中…');
+        await new Promise(r => setTimeout(r, 500));
+        setCommitTxHash(mockTxHash()); setRevealTxHash(mockTxHash());
+        combined = combineSeeds(playerSeed, dealerSeed);
       }
       setFinalRandom(combined);
       setPhase('ready');
@@ -124,6 +170,6 @@ export function useBetting() {
     chainGameId, commitTxHash, revealTxHash, finalRandom,
     settlement, betParams,
     onChain, isBetting, isMock, isWrongNetwork,
-    commit, reveal,
+    commit, reveal, quickPlay,
   };
 }

@@ -87,6 +87,16 @@ export function clearAllGames() {
   try { localStorage.removeItem(INDEX_KEY); } catch { /* ignore */ }
 }
 
+/* ── UI 偏好（快速模式、上次押注等）──────────────────────────────── */
+
+export function getPref(key, fallback = null) {
+  return safeGet(`${PREFIX}_pref_${key}`) ?? fallback;
+}
+
+export function setPref(key, value) {
+  safeSet(`${PREFIX}_pref_${key}`, value);
+}
+
 /* ── 統計聚合（供統計頁使用）────────────────────────────────────── */
 
 /**

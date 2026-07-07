@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBetting } from '../../hooks/useBetting';
-import CommitRevealFlow, { BetAmountPicker, SettlementBanner } from '../../components/CommitRevealFlow';
+import CommitRevealFlow, { BetPanel, SettlementBanner } from '../../components/CommitRevealFlow';
 import { ResultBanner, CryptoProof, ResultActions } from '../../components/GameResult';
 import { rollDie, intFromHex } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
@@ -87,7 +87,11 @@ function DiceRound({ onPlayAgain }) {
           </button>
         ))}
       </div>
-      {cr.isBetting && <BetAmountPicker value={amount} onChange={setAmount} />}
+      {cr.isBetting && (
+        <BetPanel value={amount} onChange={setAmount}
+          walletEth={cr.walletEth} poolEth={cr.poolEth}
+          maxMultiplier={2} payoutLabel="2×" />
+      )}
     </div>
   );
 

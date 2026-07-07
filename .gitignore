@@ -19,6 +19,5 @@ contracts/typechain-types/
 
 # 測試/截圖暫存
 .playwright-mcp/
-slots-result.png
-stats-check.png
+*.png
 contracts/deployment.json

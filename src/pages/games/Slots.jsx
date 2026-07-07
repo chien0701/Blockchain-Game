@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBetting } from '../../hooks/useBetting';
-import CommitRevealFlow, { BetAmountPicker, SettlementBanner } from '../../components/CommitRevealFlow';
+import CommitRevealFlow, { BetPanel, SettlementBanner } from '../../components/CommitRevealFlow';
 import { ResultBanner, CryptoProof, ResultActions } from '../../components/GameResult';
 import { mapRange } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
@@ -52,7 +52,9 @@ function SlotsRound({ onPlayAgain }) {
   const betSlot = cr.isBetting ? (
     <div className="bg-ink-850 border border-electric-900/40 rounded-2xl p-4 space-y-2">
       <div className="text-sm text-gray-400">賠率：三連線 8 倍 · 兩連線 2 倍</div>
-      <BetAmountPicker value={amount} onChange={setAmount} />
+      <BetPanel value={amount} onChange={setAmount}
+        walletEth={cr.walletEth} poolEth={cr.poolEth}
+        maxMultiplier={8} payoutLabel="最高 8×" />
     </div>
   ) : null;
 

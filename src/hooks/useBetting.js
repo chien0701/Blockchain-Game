@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { ethers } from 'ethers';
 import { useWallet } from '../context/WalletContext';
 import {
   generateSeed, generateSalt, commitHash, combineSeeds, mockTxHash,
@@ -6,7 +7,7 @@ import {
 import {
   commitGame as contractCommit,
   revealGame as contractReveal,
-  placeBetOnChain, settleBetOnChain, getTxUrl,
+  placeBetOnChain, settleBetOnChain, getPoolBalance, getTxUrl,
 } from '../utils/contract';
 import { IS_ON_CHAIN, IS_BETTING } from '../config/contractConfig';
 
@@ -27,7 +28,7 @@ function parseError(err) {
  *   mock  — 純前端模擬
  */
 export function useBetting() {
-  const { getSigner, isMock, isWrongNetwork } = useWallet();
+  const { getSigner, getProvider, address, isMock, isWrongNetwork } = useWallet();
 
   const [playerSeed] = useState(() => generateSeed());
   const [dealerSeed] = useState(() => generateSeed());
@@ -52,6 +53,24 @@ export function useBetting() {
   const mode = isMock ? 'mock' : IS_BETTING ? 'bet' : IS_ON_CHAIN ? 'plain' : 'mock';
   const onChain   = mode !== 'mock';
   const isBetting = mode === 'bet';
+
+  const [walletEth, setWalletEth] = useState(null);
+  const [poolEth,   setPoolEth]   = useState(null);
+
+  const refreshBalances = useCallback(async () => {
+    if (mode !== 'bet' || !address) return;
+    try {
+      const provider = getProvider();
+      const [wbal, pool] = await Promise.all([
+        provider.getBalance(address),
+        getPoolBalance(provider),
+      ]);
+      setWalletEth(Number(ethers.formatEther(wbal)));
+      setPoolEth(Number(pool));
+    } catch { /* 靜默 */ }
+  }, [mode, address, getProvider]);
+
+  useEffect(() => { refreshBalances(); }, [refreshBalances]);
 
   /** bet 模式需傳 { gameType, betType, betValue, amountEth } */
   const commit = async (params) => {
@@ -109,6 +128,7 @@ export function useBetting() {
       }
       setFinalRandom(combined);
       setPhase('ready');
+      refreshBalances();
       return combined;
     } catch (err) {
       setError(parseError(err));
@@ -155,6 +175,7 @@ export function useBetting() {
       }
       setFinalRandom(combined);
       setPhase('ready');
+      refreshBalances();
       return combined;
     } catch (err) {
       setError(parseError(err));
@@ -169,6 +190,7 @@ export function useBetting() {
     dismissError: () => setError(''),
     chainGameId, commitTxHash, revealTxHash, finalRandom,
     settlement, betParams,
+    walletEth, poolEth, refreshBalances,
     onChain, isBetting, isMock, isWrongNetwork,
     commit, reveal, quickPlay,
   };

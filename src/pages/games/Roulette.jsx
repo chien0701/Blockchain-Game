@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBetting } from '../../hooks/useBetting';
-import CommitRevealFlow, { BetAmountPicker, SettlementBanner } from '../../components/CommitRevealFlow';
+import CommitRevealFlow, { BetPanel, SettlementBanner } from '../../components/CommitRevealFlow';
 import { ResultBanner, CryptoProof, ResultActions } from '../../components/GameResult';
 import { mapRange } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
@@ -81,7 +81,12 @@ function RouletteRound({ onPlayAgain }) {
           placeholder="0-36"
           className="w-24 bg-ink-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm outline-none focus:border-electric-500" />
       </div>
-      {cr.isBetting && <BetAmountPicker value={amount} onChange={setAmount} />}
+      {cr.isBetting && (
+        <BetPanel value={amount} onChange={setAmount}
+          walletEth={cr.walletEth} poolEth={cr.poolEth}
+          maxMultiplier={isNumberBet ? 30 : 2}
+          payoutLabel={isNumberBet ? '30×' : '2×'} />
+      )}
     </div>
   );
 

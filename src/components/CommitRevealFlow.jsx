@@ -25,24 +25,90 @@ function Loader({ text, url }) {
   );
 }
 
-const AMOUNTS = ['0.0001', '0.0005', '0.001'];
+const CHIPS = [
+  { v: 0.0001, label: '0.1m', color: 'bg-slate-600' },
+  { v: 0.0005, label: '0.5m', color: 'bg-emerald-600' },
+  { v: 0.001,  label: '1m',   color: 'bg-electric-600' },
+  { v: 0.005,  label: '5m',   color: 'bg-amber-600' },
+  { v: 0.01,   label: '10m',  color: 'bg-red-600' },
+];
 
-export function BetAmountPicker({ value, onChange }) {
+const fmt = (n) => Number(n.toFixed(6)).toString();
+
+/**
+ * 賭場化下注面板：籌碼加注 + 自訂金額 + 賠付預覽 + 餘額/上限保護
+ * @param maxMultiplier 此遊戲最高賠率倍數（用來算資金池允許的最大注金）
+ * @param payoutLabel   賠付說明（如 "2×"、"最高 30×"）
+ */
+export function BetPanel({ value, onChange, walletEth, poolEth, maxMultiplier = 2, payoutLabel }) {
+  const amt = Number(value) || 0;
+  const maxByPool   = poolEth != null ? poolEth / maxMultiplier : Infinity;
+  const maxByWallet = walletEth != null ? Math.max(0, walletEth - 0.001) : Infinity;
+  const maxBet = Math.min(maxByPool, maxByWallet);
+
+  const add = (v) => onChange(fmt(Math.min(amt + v, maxBet || v)));
+  const set = (v) => onChange(fmt(Math.min(v, maxBet || v)));
+  const tooHigh = maxBet !== Infinity && amt > maxBet + 1e-9;
+
   return (
-    <div className="flex items-center gap-2 pt-1">
-      <span className="text-sm text-gray-500 shrink-0">💰 注金</span>
-      <div className="flex gap-2 flex-1">
-        {AMOUNTS.map((a) => (
-          <button key={a} onClick={() => onChange(a)}
-            className={`flex-1 rounded-lg py-2 text-xs font-mono font-semibold border transition-all
-              ${value === a ? 'bg-electric-600 border-electric-400 text-white shadow-glow-sm'
-                : 'bg-ink-800 border-gray-700 text-gray-300 hover:border-electric-700'}`}>
-            {a} ETH
+    <div className="bg-ink-900 border border-electric-900/40 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-gray-400">💰 下注金額</span>
+        {walletEth != null && (
+          <span className="mono-tag text-[10px] text-gray-500">餘額 {fmt(walletEth)} ETH</span>
+        )}
+      </div>
+
+      {/* 目前注金 + 賠付預覽 */}
+      <div className="flex items-end justify-between bg-ink-950 rounded-lg px-4 py-3 border border-electric-900/30">
+        <div>
+          <div className="mono-tag text-[9px] text-gray-600 uppercase">押注</div>
+          <div className="text-2xl font-bold text-white font-mono">{value} <span className="text-sm text-gray-500">ETH</span></div>
+        </div>
+        <div className="text-right">
+          <div className="mono-tag text-[9px] text-gray-600 uppercase">可贏 {payoutLabel}</div>
+          <div className="text-lg font-bold text-emerald-400 font-mono">
+            {maxMultiplier > 2 ? `≤ ${fmt(amt * maxMultiplier)}` : fmt(amt * 2)} <span className="text-xs">ETH</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 籌碼加注 */}
+      <div className="flex gap-2 justify-center flex-wrap">
+        {CHIPS.map((c) => (
+          <button key={c.v} onClick={() => add(c.v)}
+            className={`w-12 h-12 rounded-full ${c.color} text-white text-[11px] font-bold
+                        border-2 border-white/25 shadow-md hover:scale-110 transition-transform
+                        flex items-center justify-center`}>
+            {c.label}
           </button>
         ))}
       </div>
+
+      {/* 自訂輸入 + 快捷 */}
+      <div className="flex gap-2">
+        <input type="number" min="0" step="0.0001" value={value}
+          onChange={(e) => set(Math.max(0, Number(e.target.value) || 0))}
+          className={`flex-1 bg-ink-800 border rounded-lg px-3 py-2 text-white font-mono text-sm outline-none
+            ${tooHigh ? 'border-red-600' : 'border-gray-700 focus:border-electric-500'}`} />
+        <button onClick={() => onChange('0.0005')}
+          className="bg-ink-800 hover:bg-ink-700 border border-gray-700 rounded-lg px-3 text-xs text-gray-400">清除</button>
+        <button onClick={() => maxBet !== Infinity && maxBet > 0 && set(maxBet)}
+          className="bg-ink-800 hover:bg-ink-700 border border-gray-700 rounded-lg px-3 text-xs text-electric-400">最大</button>
+      </div>
+
+      {tooHigh && (
+        <div className="text-xs text-red-400">
+          ⚠️ 超過上限（{fmt(maxBet)} ETH）——受限於{maxByPool < maxByWallet ? '莊家資金池' : '你的餘額'}
+        </div>
+      )}
     </div>
   );
+}
+
+/** 相容舊呼叫 */
+export function BetAmountPicker({ value, onChange }) {
+  return <BetPanel value={value} onChange={onChange} />;
 }
 
 export function SettlementBanner({ settlement, amountEth }) {

@@ -54,6 +54,22 @@ export const CONCEPTS = {
     accent: 'pink',
     icon:   '🎰',
   },
+  'variable-payout': {
+    label:  'Variable Multiplier',
+    cn:     '變動倍率',
+    short:  '賠率由 finalRandom 經數學公式即時決定',
+    desc:   '賠率不固定，由 finalRandom 代入可驗證公式計算（如 Crash 的 10000·2⁵²/(2⁵²−h)）。合約自己算倍率並自動賠付，前端可逐位元重算驗證。',
+    accent: 'cyan',
+    icon:   '🚀',
+  },
+  'distribution': {
+    label:  'Random Distribution',
+    cn:     '機率分布',
+    short:  '多次二元隨機累加成鐘形分布',
+    desc:   'Plinko 用 16 個 bit 的左右彈跳累加成二項分布，展示如何從均勻隨機位元造出中間高、兩邊低的機率分布。',
+    accent: 'violet',
+    icon:   '🔻',
+  },
 };
 
 /** 取得 concept 資料，找不到回傳安全預設 */

@@ -40,7 +40,7 @@ const fmt = (n) => Number(n.toFixed(6)).toString();
  * @param maxMultiplier 此遊戲最高賠率倍數（用來算資金池允許的最大注金）
  * @param payoutLabel   賠付說明（如 "2×"、"最高 30×"）
  */
-export function BetPanel({ value, onChange, walletEth, poolEth, maxMultiplier = 2, payoutLabel }) {
+export function BetPanel({ value, onChange, walletEth, poolEth, maxMultiplier = 2, payoutLabel, exact = false }) {
   const amt = Number(value) || 0;
   const maxByPool   = poolEth != null ? poolEth / maxMultiplier : Infinity;
   const maxByWallet = walletEth != null ? Math.max(0, walletEth - 0.001) : Infinity;
@@ -68,7 +68,7 @@ export function BetPanel({ value, onChange, walletEth, poolEth, maxMultiplier = 
         <div className="text-right">
           <div className="mono-tag text-[9px] text-gray-600 uppercase">可贏 {payoutLabel}</div>
           <div className="text-lg font-bold text-emerald-400 font-mono">
-            {maxMultiplier > 2 ? `≤ ${fmt(amt * maxMultiplier)}` : fmt(amt * 2)} <span className="text-xs">ETH</span>
+            {exact ? fmt(amt * maxMultiplier) : maxMultiplier > 2 ? `≤ ${fmt(amt * maxMultiplier)}` : fmt(amt * 2)} <span className="text-xs">ETH</span>
           </div>
         </div>
       </div>

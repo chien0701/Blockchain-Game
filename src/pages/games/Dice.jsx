@@ -97,7 +97,7 @@ function DiceRound({ onPlayAgain }) {
 
   const betParams = () => {
     setPref('bet_dice', { mode, bet, amount });
-    return { gameType: mode === 'dice' ? 0 : 1, betType: betIndex, betValue: 0, amountEth: amount };
+    return { gameType: mode === 'dice' ? 0 : 1, betType: betIndex, param: 0, amountEth: amount };
   };
   const crForFlow = {
     ...cr,

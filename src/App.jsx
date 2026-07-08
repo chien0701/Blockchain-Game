@@ -16,6 +16,11 @@ const Roulette   = lazy(() => import('./pages/games/Roulette'));
 const Slots      = lazy(() => import('./pages/games/Slots'));
 const Mastermind = lazy(() => import('./pages/games/Mastermind'));
 const Mining     = lazy(() => import('./pages/games/Mining'));
+const Crash      = lazy(() => import('./pages/games/Crash'));
+const Limbo      = lazy(() => import('./pages/games/Limbo'));
+const Wheel      = lazy(() => import('./pages/games/Wheel'));
+const Plinko     = lazy(() => import('./pages/games/Plinko'));
+const Revolver   = lazy(() => import('./pages/games/Revolver'));
 
 function PageLoader() {
   return (
@@ -45,6 +50,11 @@ export default function App() {
               <Route path="/play/slots"     element={<Slots />} />
               <Route path="/play/mastermind" element={<Mastermind />} />
               <Route path="/play/mining"    element={<Mining />} />
+              <Route path="/play/crash"     element={<Crash />} />
+              <Route path="/play/limbo"     element={<Limbo />} />
+              <Route path="/play/wheel"     element={<Wheel />} />
+              <Route path="/play/plinko"    element={<Plinko />} />
+              <Route path="/play/revolver"  element={<Revolver />} />
             </Routes>
           </Suspense>
         </main>

@@ -235,7 +235,7 @@ function getFairBet(signerOrProvider) {
 export async function placeBetOnChain(signer, p) {
   const fb = getFairBet(signer);
   const tx = await fb.placeBet(
-    p.gameType, p.betType, p.betValue ?? 0,
+    p.gameType, p.betType, BigInt(p.param ?? 0),
     p.playerCommit, p.dealerCommit,
     { value: ethers.parseEther(p.amountEth) },
   );
@@ -259,6 +259,7 @@ export async function settleBetOnChain(signer, betId, playerSeed, playerSalt, de
     finalRandom: args.finalRandom,
     won:         args.won,
     outcome:     Number(args.outcome),
+    payoutWei:   args.payout,
     payoutEth:   ethers.formatEther(args.payout),
     txHash:      receipt.hash,
   };

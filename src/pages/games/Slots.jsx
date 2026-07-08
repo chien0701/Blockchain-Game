@@ -60,7 +60,7 @@ function SlotsRound({ onPlayAgain }) {
 
   const betParams = () => {
     setPref('bet_slots', { amount });
-    return { gameType: 3, betType: 0, betValue: 0, amountEth: amount };
+    return { gameType: 3, betType: 0, param: 0, amountEth: amount };
   };
   const crForFlow = {
     ...cr,

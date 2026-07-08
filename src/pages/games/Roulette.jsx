@@ -95,7 +95,7 @@ function RouletteRound({ onPlayAgain }) {
     return {
       gameType: 2,
       betType: isNumberBet ? 6 : BETS.findIndex(b => b.id === bet),
-      betValue: isNumberBet ? Number(num) : 0,
+      param: isNumberBet ? Number(num) : 0,
       amountEth: amount,
     };
   };

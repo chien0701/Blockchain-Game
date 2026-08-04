@@ -21,3 +21,6 @@ contracts/typechain-types/
 .playwright-mcp/
 *.png
 contracts/deployment.json
+contracts/gas-report.txt
+contracts/slither-raw.txt
+contracts/slither-report.md

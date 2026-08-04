@@ -31,7 +31,7 @@ contract FairBet {
         uint256  settledAt;
     }
 
-    address public owner;
+    address public immutable owner;
     uint256 public betCount;
     uint256 public lockedPayouts;
     mapping(uint256 => Bet) public bets;

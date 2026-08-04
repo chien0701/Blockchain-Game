@@ -8,6 +8,7 @@ const NAV = [
   { path: '/verifier', label: '驗證工具', tag: '003' },
   { path: '/docs',     label: '說明',     tag: '004' },
   { path: '/stats',    label: '統計',     tag: '005' },
+  { path: '/lab',      label: '實驗室',   tag: '006' },
 ];
 
 export default function Navbar() {

@@ -11,6 +11,7 @@ const Game       = lazy(() => import('./pages/Game'));
 const Verifier   = lazy(() => import('./pages/Verifier'));
 const Docs       = lazy(() => import('./pages/Docs'));
 const Stats      = lazy(() => import('./pages/Stats'));
+const Lab        = lazy(() => import('./pages/Lab'));
 const Dice       = lazy(() => import('./pages/games/Dice'));
 const Roulette   = lazy(() => import('./pages/games/Roulette'));
 const Slots      = lazy(() => import('./pages/games/Slots'));
@@ -45,6 +46,7 @@ export default function App() {
               <Route path="/verifier"       element={<Verifier />} />
               <Route path="/docs"           element={<Docs />} />
               <Route path="/stats"          element={<Stats />} />
+              <Route path="/lab"            element={<Lab />} />
               <Route path="/play/dice"      element={<Dice />} />
               <Route path="/play/roulette"  element={<Roulette />} />
               <Route path="/play/slots"     element={<Slots />} />

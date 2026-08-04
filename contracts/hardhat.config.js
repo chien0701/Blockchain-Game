@@ -1,4 +1,5 @@
 require("@nomicfoundation/hardhat-toolbox");
+require("hardhat-gas-reporter");
 require("dotenv").config();
 
 /** @type import('hardhat/config').HardhatUserConfig */
@@ -8,6 +9,14 @@ module.exports = {
     settings: {
       optimizer: { enabled: true, runs: 200 },
     },
+  },
+
+  gasReporter: {
+    enabled: true,
+    currency: "USD",
+    showMethodSig: true,
+    noColors: true,
+    outputFile: "gas-report.txt",
   },
 
   networks: {

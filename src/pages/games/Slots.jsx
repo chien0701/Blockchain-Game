@@ -69,7 +69,7 @@ function SlotsRound({ onPlayAgain }) {
   };
 
   return (
-    <CommitRevealFlow cr={crForFlow} title="拉霸" revealLabel="拉下拉桿" betSlot={betSlot}>
+    <CommitRevealFlow cr={crForFlow} title="拉霸" revealLabel="拉下拉桿" betSlot={betSlot} loaderTheme="slots">
       {outcome && (
         <div className="space-y-6 animate-fade-in-up">
           <ResultBanner win={outcome.win} title={outcome.allSame ? '🎉 JACKPOT！' : outcome.win ? '中獎！' : '再接再厲'} sub={outcome.tier} />

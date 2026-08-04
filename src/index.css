@@ -75,6 +75,27 @@ body {
 .dot:nth-child(1) { animation-delay: -0.32s; }
 .dot:nth-child(2) { animation-delay: -0.16s; }
 
+/* ── 主題化載入動畫 ── */
+@keyframes spin360   { to { transform: rotate(360deg); } }
+@keyframes rocketFly { 0%,100% { transform: translateY(2px) rotate(-8deg); } 50% { transform: translateY(-16px) rotate(-8deg); } }
+@keyframes ballDrop  { 0% { transform: translateY(-22px); } 55% { transform: translateY(8px); } 72% { transform: translateY(-4px); } 100% { transform: translateY(8px); } }
+@keyframes dieRoll   { 0% { transform: rotate(0) translateY(0); } 25% { transform: rotate(90deg) translateY(-10px); } 50% { transform: rotate(180deg) translateY(0); } 75% { transform: rotate(270deg) translateY(-10px); } 100% { transform: rotate(360deg) translateY(0); } }
+@keyframes shakeX    { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@keyframes reelSpin  { 0% { transform: translateY(0); } 100% { transform: translateY(-66.66%); } }
+@keyframes climbFade { 0% { opacity: 0; transform: translateY(10px) scale(0.9); } 30%,70% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-10px) scale(1.1); } }
+@keyframes glowRing  { 0%,100% { box-shadow: 0 0 0 0 rgba(26,92,255,0.5); } 50% { box-shadow: 0 0 0 10px rgba(26,92,255,0); } }
+
+.anim-spin   { animation: spin360 1.1s linear infinite; }
+.anim-rocket { animation: rocketFly 0.9s ease-in-out infinite; }
+.anim-ball   { animation: ballDrop 0.85s cubic-bezier(.5,0,.7,1) infinite; }
+.anim-die    { animation: dieRoll 1.2s ease-in-out infinite; }
+.anim-shake  { animation: shakeX 0.5s ease-in-out infinite; }
+.anim-climb  { animation: climbFade 1.4s ease-in-out infinite; }
+.anim-ring   { animation: glowRing 1.4s ease-out infinite; }
+
+.reel-window { height: 40px; overflow: hidden; }
+.reel-strip  { animation: reelSpin 0.4s linear infinite; }
+
 /* 尊重使用者的減少動態偏好 */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

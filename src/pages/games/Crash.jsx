@@ -68,7 +68,7 @@ function CrashRound({ onPlayAgain }) {
   const crForFlow = { ...cr, commit: () => cr.commit(params()), quickPlay: () => cr.quickPlay(params()) };
 
   return (
-    <CommitRevealFlow cr={crForFlow} title="Crash 火箭" revealLabel="發射！" betSlot={betSlot}>
+    <CommitRevealFlow cr={crForFlow} title="Crash 火箭" revealLabel="發射！" betSlot={betSlot} loaderTheme="crash">
       {outcome && (
         <div className="space-y-6 animate-fade-in-up">
           <ResultBanner win={outcome.win} title={outcome.win ? '🚀 成功脫離！' : '💥 火箭墜毀'}

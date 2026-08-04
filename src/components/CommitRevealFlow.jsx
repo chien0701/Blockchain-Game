@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import StepBar from './StepBar';
+import GameLoader from './GameLoader';
 import { shortenHash } from '../utils/crypto';
 import { getTxUrl } from '../utils/contract';
 import { getPref, setPref } from '../utils/storage';
@@ -15,15 +16,6 @@ function HashBox({ label, value, hidden }) {
   );
 }
 
-function Loader({ text, url }) {
-  return (
-    <div className="flex flex-col items-center gap-4 py-12">
-      <div className="flex gap-2">{[0,1,2].map(i => <div key={i} className="dot w-3 h-3 bg-electric-500 rounded-full" />)}</div>
-      <p className="text-gray-400 text-sm">{text}</p>
-      {url && <a href={url} target="_blank" rel="noreferrer" className="text-xs text-electric-400 underline">在區塊瀏覽器查看 ↗</a>}
-    </div>
-  );
-}
 
 const CHIPS = [
   { v: 0.0001, label: '0.1m', color: 'bg-slate-600' },
@@ -142,7 +134,7 @@ export function ErrorBox({ message, onDismiss }) {
  * 共用的 Commit + Reveal 流程 UI。
  * phase === 'ready' 時改渲染 children（交給各遊戲自己的玩法）。
  */
-export default function CommitRevealFlow({ cr, title, revealLabel = '揭露並開始', betSlot, canCommit = true, children }) {
+export default function CommitRevealFlow({ cr, title, revealLabel = '揭露並開始', betSlot, canCommit = true, loaderTheme = 'commit', children }) {
   const {
     phase, loading, loadMsg, loadUrl, error, dismissError,
     playerSeed, playerCommit, dealerSeed, dealerCommit,
@@ -162,7 +154,7 @@ export default function CommitRevealFlow({ cr, title, revealLabel = '揭露並�
       <ErrorBox message={error} onDismiss={dismissError} />
 
       {loading ? (
-        <Loader text={loadMsg} url={loadUrl} />
+        <GameLoader theme={phase === 'commit' ? loaderTheme : loaderTheme} text={loadMsg} url={loadUrl} />
       ) : phase === 'commit' ? (
         <div className="space-y-6 animate-fade-in-up">
           <div className="text-center">

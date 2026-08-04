@@ -72,7 +72,7 @@ function RevolverRound({ onPlayAgain }) {
   const crForFlow = { ...cr, commit: () => cr.commit(params()), quickPlay: () => cr.quickPlay(params()) };
 
   return (
-    <CommitRevealFlow cr={crForFlow} title="左輪輪盤" revealLabel="扣扳機" betSlot={betSlot}>
+    <CommitRevealFlow cr={crForFlow} title="左輪輪盤" revealLabel="扣扳機" betSlot={betSlot} loaderTheme="revolver">
       {outcome && (
         <div className="space-y-6 animate-fade-in-up">
           <ResultBanner win={outcome.survived} title={outcome.survived ? '😮‍💨 存活！' : '💀 中彈'}

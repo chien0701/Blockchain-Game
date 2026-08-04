@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getStats, recentGames, clearAllGames } from '../utils/storage';
 import { getGame } from '../games/registry';
+import MoneyChart from '../components/MoneyChart';
 
 function Stat({ label, value, sub, accent = 'text-white' }) {
   return (
@@ -43,6 +44,10 @@ export default function Stats() {
   const empty = stats.total === 0;
   const gameEntries = Object.entries(stats.byGame).sort((a, b) => b[1] - a[1]);
 
+  // 資金曲線：只取有真實下注的局，依時間由舊到新
+  const betRounds = recent.filter(g => g.bet > 0).slice().reverse();
+  const net = stats.totalNet;
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-12 space-y-10">
       <div className="flex items-end justify-between flex-wrap gap-4">
@@ -71,6 +76,21 @@ export default function Stats() {
         </div>
       ) : (
         <>
+          {/* 資金曲線 */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold text-white">💰 資金曲線</h2>
+              <span className="mono-tag text-[10px] text-gray-600">CUMULATIVE NET (ETH)</span>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <Stat label="淨收益" value={`${net >= 0 ? '+' : ''}${net.toFixed(4)}`}
+                    accent={net >= 0 ? 'text-emerald-400' : 'text-red-400'} sub="ETH" />
+              <Stat label="總下注" value={stats.totalWagered.toFixed(4)} sub={`${stats.betCount} 局真實下注`} />
+              <Stat label="總回收" value={(stats.totalWagered + stats.totalNet).toFixed(4)} sub="ETH" />
+            </div>
+            <MoneyChart rounds={betRounds} />
+          </section>
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <Stat label="總局數" value={stats.total} />
             <Stat label="勝率" value={`${stats.winRate}%`} accent="text-electric-400"

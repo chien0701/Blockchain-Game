@@ -108,7 +108,7 @@ function RouletteRound({ onPlayAgain }) {
   const dotColor = { red: 'bg-red-600', black: 'bg-gray-900', green: 'bg-emerald-600' };
 
   return (
-    <CommitRevealFlow cr={crForFlow} title="輪盤" revealLabel="轉動輪盤" betSlot={betSlot} canCommit={hasBet}>
+    <CommitRevealFlow cr={crForFlow} title="輪盤" revealLabel="轉動輪盤" betSlot={betSlot} canCommit={hasBet} loaderTheme="roulette">
       {outcome && (
         <div className="space-y-6 animate-fade-in-up">
           <ResultBanner win={outcome.win} title={outcome.win ? '中獎！' : '槓龜'} sub={`你押：${outcome.betLabel}`} />

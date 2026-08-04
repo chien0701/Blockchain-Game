@@ -44,6 +44,9 @@ export function saveGame(record) {
   const gameType = record.gameType || 'blackjack';
   safeSet(gameKey(record.gameId), { ...record, gameType });
 
+  const bet    = Number(record.betAmount) || 0;
+  const payout = Number(record.payout)    || 0;
+
   const index = listGames();
   const entry = {
     gameId:   record.gameId,
@@ -51,6 +54,8 @@ export function saveGame(record) {
     ts:       record.timestamp,
     result:   record.result?.winner ?? null,
     onChain:  Boolean(record.chainGameId),
+    bet,
+    net:      bet > 0 ? payout - bet : 0,
   };
 
   // 去重（同 gameId 覆蓋）後置頂
@@ -114,6 +119,9 @@ export function getStats() {
     onChainCount: 0,
     mockCount:    0,
     byGame:       {},
+    totalWagered: 0,
+    totalNet:     0,
+    betCount:     0,
   };
 
   for (const g of index) {
@@ -125,6 +133,12 @@ export function getStats() {
     else stats.mockCount++;
 
     stats.byGame[g.gameType] = (stats.byGame[g.gameType] || 0) + 1;
+
+    if (g.bet > 0) {
+      stats.totalWagered += g.bet;
+      stats.totalNet     += g.net;
+      stats.betCount++;
+    }
   }
 
   const decided = stats.wins + stats.losses;

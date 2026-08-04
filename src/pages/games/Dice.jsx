@@ -106,7 +106,7 @@ function DiceRound({ onPlayAgain }) {
   };
 
   return (
-    <CommitRevealFlow cr={crForFlow} title="骰子 / 猜硬幣" revealLabel="開獎" betSlot={betSlot} canCommit={!!bet}>
+    <CommitRevealFlow cr={crForFlow} title="骰子 / 猜硬幣" revealLabel="開獎" betSlot={betSlot} canCommit={!!bet} loaderTheme={mode}>
       {outcome && (
         <div className="space-y-6 animate-fade-in-up">
           <ResultBanner win={outcome.win} title={outcome.win ? '猜中了！' : '沒猜中'} sub={`開出 ${outcome.faceText}`} />

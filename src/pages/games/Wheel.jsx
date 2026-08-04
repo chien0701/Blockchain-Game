@@ -66,7 +66,7 @@ function WheelRound({ onPlayAgain }) {
   const crForFlow = { ...cr, commit: () => cr.commit(params()), quickPlay: () => cr.quickPlay(params()) };
 
   return (
-    <CommitRevealFlow cr={crForFlow} title="幸運轉盤" revealLabel="轉！" betSlot={betSlot}>
+    <CommitRevealFlow cr={crForFlow} title="幸運轉盤" revealLabel="轉！" betSlot={betSlot} loaderTheme="wheel">
       {outcome && (
         <div className="space-y-6 animate-fade-in-up">
           <ResultBanner win={outcome.win} title={outcome.win ? `${outcome.mult}× 中獎！` : '停在 0×'}

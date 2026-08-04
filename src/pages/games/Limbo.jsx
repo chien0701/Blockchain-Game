@@ -68,7 +68,7 @@ function LimboRound({ onPlayAgain }) {
   const crForFlow = { ...cr, commit: () => cr.commit(params()), quickPlay: () => cr.quickPlay(params()) };
 
   return (
-    <CommitRevealFlow cr={crForFlow} title="Limbo" revealLabel="擲倍率" betSlot={betSlot}>
+    <CommitRevealFlow cr={crForFlow} title="Limbo" revealLabel="擲倍率" betSlot={betSlot} loaderTheme="limbo">
       {outcome && (
         <div className="space-y-6 animate-fade-in-up">
           <ResultBanner win={outcome.win} title={outcome.win ? '突破！' : '未達標'}

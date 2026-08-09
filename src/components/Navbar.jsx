@@ -3,12 +3,12 @@ import { useWallet } from '../context/WalletContext';
 import { CURRENT_CHAIN, IS_ON_CHAIN } from '../config/contractConfig';
 
 const NAV = [
-  { path: '/',         label: '首頁',     tag: '001' },
-  { path: '/lobby',    label: '遊戲大廳', tag: '002' },
-  { path: '/verifier', label: '驗證工具', tag: '003' },
-  { path: '/docs',     label: '說明',     tag: '004' },
-  { path: '/stats',    label: '統計',     tag: '005' },
-  { path: '/lab',      label: '實驗室',   tag: '006' },
+  { path: '/',         label: '首頁'   },
+  { path: '/lobby',    label: '遊戲大廳' },
+  { path: '/verifier', label: '驗證工具' },
+  { path: '/docs',     label: '說明'   },
+  { path: '/stats',    label: '統計'   },
+  { path: '/lab',      label: '實驗室' },
 ];
 
 export default function Navbar() {
@@ -27,14 +27,9 @@ export default function Navbar() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 group">
             <span className="text-2xl group-hover:text-glow transition-all">⛓️</span>
-            <div className="flex flex-col leading-none">
-              <span className="font-bold text-white text-lg tracking-tight">
-                Fair<span className="text-electric-400">Chain</span>
-              </span>
-              <span className="mono-tag text-[9px] text-gray-600 uppercase">
-                Provably Fair Protocol
-              </span>
-            </div>
+            <span className="font-bold text-white text-lg tracking-tight">
+              Fair<span className="text-electric-400">Chain</span>
+            </span>
           </Link>
 
           {/* Links */}
@@ -45,10 +40,9 @@ export default function Navbar() {
                 <Link
                   key={path}
                   to={path}
-                  className={`relative px-4 py-2 rounded-md text-sm font-medium transition-colors group
+                  className={`relative px-4 py-2 rounded-md text-sm font-medium transition-colors
                     ${active ? 'text-white' : 'text-gray-400 hover:text-white'}`}
                 >
-                  <span className="mono-tag text-[9px] text-gray-600 mr-1.5">{tag}</span>
                   {label}
                   {active && (
                     <span className="absolute left-3 right-3 -bottom-px h-px bg-electric-400 shadow-glow-sm" />

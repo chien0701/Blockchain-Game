@@ -33,26 +33,17 @@ export default function SystemBar() {
   return (
     <div className="bg-ink-950 border-b border-electric-900/40 text-[11px]
                     font-mono text-gray-500 tracking-wide">
-      <div className="max-w-6xl mx-auto px-4 h-7 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full
-              ${live ? 'bg-electric-400 animate-glow-pulse' : 'bg-gray-600'}`} />
-            <span className={live ? 'text-electric-400' : 'text-gray-500'}>
-              {IS_ON_CHAIN ? CURRENT_CHAIN.name : '模擬環境 SIMULATION'}
-            </span>
+      <div className="max-w-6xl mx-auto px-4 h-7 flex items-center gap-3">
+        <span className="flex items-center gap-1.5">
+          <span className={`w-1.5 h-1.5 rounded-full
+            ${live ? 'bg-electric-400 animate-glow-pulse' : 'bg-gray-600'}`} />
+          <span className={live ? 'text-electric-400' : 'text-gray-500'}>
+            {IS_ON_CHAIN ? CURRENT_CHAIN.name : '模擬環境'}
           </span>
-          <span className="hidden sm:inline text-gray-700">|</span>
-          <span className="hidden sm:inline">
-            BLOCK <span className="text-gray-400">{block !== null ? `#${block.toLocaleString()}` : '——'}</span>
-          </span>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <span className="hidden sm:inline">PROTOCOL <span className="text-gray-400">COMMIT-REVEAL</span></span>
-          <span className="text-gray-700 hidden sm:inline">|</span>
-          <span>KECCAK<span className="text-gray-400">256</span></span>
-        </div>
+        </span>
+        {block !== null && (
+          <span className="text-gray-600">#{block.toLocaleString()}</span>
+        )}
       </div>
     </div>
   );

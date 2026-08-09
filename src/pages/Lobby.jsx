@@ -26,7 +26,6 @@ export default function Lobby() {
 
       {/* Header */}
       <div>
-        <span className="mono-tag text-xs text-electric-500">GAME LOBBY</span>
         <h1 className="text-3xl font-bold text-white mt-1">🎰 遊戲大廳</h1>
         <p className="text-gray-500 mt-1">單人對莊家（智能合約），每一局結果都可公開驗證</p>
       </div>
@@ -35,7 +34,6 @@ export default function Lobby() {
       <section>
         <div className="flex items-center gap-3 mb-5">
           <h2 className="text-lg font-semibold text-gray-200">選擇遊戲</h2>
-          <span className="mono-tag text-[10px] text-gray-600">SELECT A GAME</span>
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -81,7 +79,6 @@ export default function Lobby() {
         <section>
           <div className="flex items-center gap-3 mb-5">
             <h2 className="text-lg font-semibold text-gray-200">📜 你的遊戲記錄</h2>
-            <span className="mono-tag text-[10px] text-gray-600">LOCAL HISTORY</span>
           </div>
           <div className="bg-ink-850 border border-electric-900/30 rounded-2xl overflow-hidden">
             <table className="w-full text-sm">

@@ -52,7 +52,6 @@ export default function Stats() {
     <div className="max-w-3xl mx-auto px-4 py-12 space-y-10">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <span className="mono-tag text-xs text-electric-500">STATISTICS</span>
           <h1 className="text-3xl font-bold text-white mt-1">📊 戰績統計</h1>
           <p className="text-gray-500 mt-1">基於本瀏覽器的遊戲紀錄</p>
         </div>
@@ -80,7 +79,6 @@ export default function Stats() {
           <section className="space-y-4">
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-semibold text-white">💰 資金曲線</h2>
-              <span className="mono-tag text-[10px] text-gray-600">CUMULATIVE NET (ETH)</span>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <Stat label="淨收益" value={`${net >= 0 ? '+' : ''}${net.toFixed(4)}`}

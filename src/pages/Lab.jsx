@@ -121,7 +121,6 @@ export default function Lab() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-12 space-y-8">
       <div className="text-center">
-        <span className="mono-tag text-xs text-electric-500">MONTE-CARLO LAB</span>
         <h1 className="text-3xl font-bold text-white mt-2">📊 期望值實驗室</h1>
         <p className="text-gray-400 mt-2 leading-relaxed">
           用<strong>與真實遊戲相同的結果函數</strong>跑數萬次模擬，驗證理論期望值與實測是否吻合（大數法則）。

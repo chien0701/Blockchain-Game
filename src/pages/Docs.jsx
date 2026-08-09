@@ -159,7 +159,6 @@ export default function Docs() {
     <div className="max-w-3xl mx-auto px-4 py-12 space-y-12">
 
       <div className="text-center">
-        <span className="mono-tag text-xs text-electric-500">DOCUMENTATION</span>
         <h1 className="text-4xl font-bold text-white mt-2">技術說明</h1>
         <p className="text-gray-400 mt-3 leading-relaxed">
           FairChain 如何用密碼學保證每一局遊戲都「可證明公平」（Provably Fair）

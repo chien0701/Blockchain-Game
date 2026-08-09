@@ -71,7 +71,7 @@ export default function Home() {
           <div data-hero className="inline-flex items-center gap-2 bg-electric-950 border border-electric-800
                           rounded-full px-4 py-1.5 text-sm text-electric-300">
             <span className="w-2 h-2 bg-electric-400 rounded-full animate-glow-pulse" />
-            <span className="mono-tag text-xs">COMMIT-REVEAL · KECCAK256 · SALT</span>
+            可證明公平的鏈上博弈
           </div>
 
           <h1 data-hero className="text-6xl sm:text-7xl font-extrabold tracking-tight text-white">
@@ -103,7 +103,7 @@ export default function Home() {
       <section className="py-20 px-4 border-t border-electric-900/30">
         <div className="max-w-5xl mx-auto">
           <h2 data-reveal className="text-3xl font-bold text-center text-white mb-2">運作原理</h2>
-          <p data-reveal className="text-center text-gray-500 mb-12 mono-tag text-sm">THREE STEPS TO PROVABLE FAIRNESS</p>
+          <p data-reveal className="text-center text-gray-500 mb-12 text-sm">三個步驟確保絕對公平</p>
 
           <div className="grid sm:grid-cols-3 gap-6">
             {STEPS.map((s) => (
@@ -151,7 +151,7 @@ export default function Home() {
       <section className="py-20 px-4 border-t border-electric-900/30">
         <div className="max-w-5xl mx-auto">
           <h2 data-reveal className="text-3xl font-bold text-center text-white mb-2">遊戲陣容</h2>
-          <p data-reveal className="text-center text-gray-500 mb-12 mono-tag text-sm">EACH GAME DEMONSTRATES A CORE CONCEPT</p>
+          <p data-reveal className="text-center text-gray-500 mb-12 text-sm">每款遊戲展示一個區塊鏈核心概念</p>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {GAMES.map((g) => {

@@ -169,10 +169,7 @@ export default function Home() {
                       ? <span className="mono-tag text-[9px] text-electric-300 border border-electric-800 rounded px-1.5 py-0.5">LIVE</span>
                       : <span className="mono-tag text-[9px] text-gray-500 border border-gray-700 rounded px-1.5 py-0.5">SOON</span>}
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white">{g.name}</h3>
-                    <span className="mono-tag text-[10px] text-gray-600">{g.en}</span>
-                  </div>
+                  <h3 className="text-lg font-bold text-white">{g.name}</h3>
                   <p className="text-gray-400 text-sm leading-relaxed min-h-[40px]">{g.tagline}</p>
                   <div className="flex items-center justify-between pt-1">
                     <span className={`text-[11px] rounded-full px-2 py-0.5 border ${ac.text} ${ac.border} ${ac.bg}`}>

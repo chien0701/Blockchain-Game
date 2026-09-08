@@ -5,7 +5,7 @@ export default function PlayingCard({ suit, value, hidden = false, size = 'md', 
   const dim = {
     sm: 'w-10 h-14 text-xs',
     md: 'w-14 h-20 text-sm',
-    lg: 'w-18 h-24 text-base',
+    lg: 'w-[4.5rem] h-24 text-base',
   }[size];
 
   const style = { animationDelay: `${delay * 120}ms` };

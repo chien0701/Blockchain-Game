@@ -13,6 +13,19 @@ export function ResultBanner({ win, draw, title, sub }) {
   );
 }
 
+export function SimulationNotice() {
+  return (
+    <div className="bg-amber-950/50 border border-amber-700 rounded-xl p-4 flex items-start gap-3">
+      <span className="text-xl">🎭</span>
+      <div className="text-sm text-amber-300 leading-relaxed">
+        <strong>此局為模擬，未上鏈。</strong>
+        密碼學流程與結果計算皆為真實邏輯，但交易 Hash 為模擬產生，
+        鏈上查不到這一局，也沒有任何金流。要真實上鏈請連接 MetaMask 並切換至正確網路。
+      </div>
+    </div>
+  );
+}
+
 export function CryptoProof({ finalRandom, chainGameId, commitTxHash, revealTxHash }) {
   const Row = ({ label, hash, link }) => (
     <div className="flex items-center justify-between">

@@ -9,9 +9,11 @@ import {
 } from '../utils/gameLogic';
 import { loadGame, recentGames } from '../utils/storage';
 import {
-  getReadOnlyProvider, getGameData, getContractUrl, GameState,
+  getReadOnlyProvider, getGameData, getBetData, getContractUrl, getFairBetUrl,
+  GameState, BetState,
 } from '../utils/contract';
-import { IS_ON_CHAIN, CURRENT_CHAIN } from '../config/contractConfig';
+import { outcomeOf, describeOutcome, GAME_TYPE_NAMES } from '../games/random';
+import { IS_ON_CHAIN, IS_BETTING, CURRENT_CHAIN } from '../config/contractConfig';
 
 /* ── 共用 ─────────────────────────────────────────────────────── */
 
@@ -70,7 +72,7 @@ function RecalcHands({ finalRandom }) {
 
 export default function Verifier() {
   const [params] = useSearchParams();
-  const [mode, setMode] = useState('local');   // 'local' | 'chain'
+  const [mode, setMode] = useState('local');   // 'local' | 'chain' | 'bet'
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 space-y-8">
@@ -82,26 +84,25 @@ export default function Verifier() {
       </div>
 
       {/* 模式切換 */}
-      <div className="flex gap-2 bg-ink-850 border border-electric-900/30 rounded-2xl p-1.5">
-        <button
-          onClick={() => setMode('local')}
-          className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-colors
-            ${mode === 'local' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
-        >
-          💾 本地紀錄
-        </button>
-        <button
-          onClick={() => setMode('chain')}
-          className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-colors
-            ${mode === 'chain' ? 'bg-electric-700 text-white' : 'text-gray-400 hover:text-white'}`}
-        >
-          ⛓️ 鏈上驗證
-        </button>
+      <div className="flex gap-1.5 bg-ink-850 border border-electric-900/30 rounded-2xl p-1.5">
+        {[
+          ['local', '💾 本地紀錄'],
+          ['chain', '⛓️ 鏈上・公平局'],
+          ['bet',   '🎰 鏈上・下注局'],
+        ].map(([m, label]) => (
+          <button key={m} onClick={() => setMode(m)}
+            className={`flex-1 rounded-xl py-2.5 text-xs sm:text-sm font-semibold transition-colors
+              ${mode === m
+                ? (m === 'local' ? 'bg-gray-700 text-white' : 'bg-electric-700 text-white')
+                : 'text-gray-400 hover:text-white'}`}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      {mode === 'local'
-        ? <LocalVerifier initialId={params.get('id') || ''} />
-        : <ChainVerifier />}
+      {mode === 'local' ? <LocalVerifier initialId={params.get('id') || ''} />
+        : mode === 'chain' ? <ChainVerifier />
+        : <BetVerifier />}
     </div>
   );
 }
@@ -373,6 +374,184 @@ function ChainVerifier() {
           </div>
 
           <RecalcHands finalRandom={data.finalRandom} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── 下注局鏈上驗證（FairBet）──────────────────────────────────── */
+
+function BetVerifier() {
+  const [betId,   setBetId]   = useState('');
+  const [data,    setData]    = useState(null);
+  const [checks,  setChecks]  = useState(null);
+  const [error,   setError]   = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const runVerify = async () => {
+    setError(''); setChecks(null); setData(null);
+
+    if (!IS_BETTING) {
+      setError('尚未設定 FairBet 合約地址（VITE_FAIRBET_ADDRESS）。');
+      return;
+    }
+    const id = betId.trim();
+    if (!id || isNaN(Number(id))) {
+      setError('請輸入有效的鏈上 Bet ID（數字，例如 1）。');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const provider = getReadOnlyProvider();
+      const b = await getBetData(provider, id);
+
+      if (b.state === BetState.None) {
+        setError(`鏈上找不到 Bet #${id}。`);
+        return;
+      }
+      setData(b);
+
+      if (b.state !== BetState.Settled) {
+        setError(`Bet #${id} 尚未結算（狀態：已下注），無法驗證結果。`);
+        return;
+      }
+
+      const localOutcome = outcomeOf(b.gameType, b.finalRandom);
+      const outcomeOk = localOutcome !== null && localOutcome === b.outcome;
+
+      let pOk = null, dOk = null, finalOk = null;
+      if (b.seeds) {
+        pOk     = verifyCommit(b.seeds.playerSeed, b.seeds.playerSalt, b.playerCommit);
+        dOk     = verifyCommit(b.seeds.dealerSeed, b.seeds.dealerSalt, b.dealerCommit);
+        finalOk = combineSeeds(b.seeds.playerSeed, b.seeds.dealerSeed) === b.finalRandom;
+      }
+      setChecks({ outcomeOk, localOutcome, pOk, dOk, finalOk, full: Boolean(b.seeds) });
+    } catch (err) {
+      setError(`讀取鏈上資料失敗：${(err?.message || '').slice(0, 120)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const allPassed = checks && checks.outcomeOk
+    && (!checks.full || (checks.pOk && checks.dOk && checks.finalOk));
+  const fairBetUrl = getFairBetUrl();
+
+  return (
+    <div className="space-y-8">
+      <div className="bg-electric-950/30 border border-electric-900 rounded-xl p-4 text-sm text-electric-300 flex items-start gap-2">
+        <span>🎰</span>
+        <div>
+          驗證 <strong>FairBet</strong> 上的下注局（骰子／輪盤／拉霸／Crash／Limbo／轉盤／Plinko／左輪）。
+          直接從 <strong>{CURRENT_CHAIN.name}</strong> 讀取，<strong>不需錢包</strong>。
+          {fairBetUrl && (
+            <> <a href={fairBetUrl} target="_blank" rel="noreferrer" className="underline">在區塊瀏覽器查看合約 ↗</a></>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-ink-850 border border-electric-900/30 rounded-2xl p-5 space-y-3">
+        <label className="text-sm text-gray-400 font-medium">鏈上 Bet ID</label>
+        <div className="flex gap-2">
+          <input
+            value={betId}
+            onChange={e => setBetId(e.target.value)}
+            placeholder="例如 1"
+            className="flex-1 bg-ink-800 border border-gray-700 rounded-xl px-3 py-2
+                       text-white placeholder-gray-600 font-mono text-sm outline-none
+                       focus:border-electric-500"
+          />
+          <button
+            onClick={runVerify}
+            disabled={loading}
+            className="bg-electric-600 hover:bg-electric-500 disabled:bg-ink-800 text-white rounded-xl
+                       px-5 py-2 font-semibold transition-colors whitespace-nowrap"
+          >
+            {loading ? '讀取中…' : '從鏈上驗證'}
+          </button>
+        </div>
+        <p className="text-xs text-gray-600">
+          Bet ID 可在遊戲結果頁的「鏈上 Game ID」欄位找到。
+        </p>
+      </div>
+
+      {error && (
+        <div className="bg-red-950/50 border border-red-800 rounded-xl p-4 text-red-300 text-sm">
+          ⚠️ {error}
+        </div>
+      )}
+
+      {data && checks && (
+        <div className="space-y-5 animate-fade-in-up">
+          <Verdict
+            passed={allPassed}
+            okText={checks.full
+              ? '承諾、隨機數與遊戲結果三項皆通過驗證'
+              : '合約結果與本地重算一致（未能取得種子，僅完成部分驗證）'}
+            failText="鏈上資料與重算結果不符"
+          />
+
+          <div className="bg-ink-850 border border-electric-900/30 rounded-2xl p-5 space-y-3">
+            <div className="text-sm font-bold text-gray-300 mb-3">📋 鏈上下注資料</div>
+            {[
+              { label: '遊戲',       value: GAME_TYPE_NAMES[data.gameType] ?? `#${data.gameType}` },
+              { label: '下注者',     value: shortenHash(data.player, 8) },
+              { label: '注金',       value: `${data.amountEth} ETH` },
+              { label: '賠付',       value: `${data.payoutEth} ETH` },
+              { label: '合約 outcome', value: describeOutcome(data.gameType, data.outcome) },
+              { label: '玩家承諾',   value: shortenHash(data.playerCommit, 10) },
+              { label: '莊家承諾',   value: shortenHash(data.dealerCommit, 10) },
+              { label: '最終隨機數', value: shortenHash(data.finalRandom, 10) },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex justify-between items-start gap-4 text-sm">
+                <span className="text-gray-500 shrink-0">{label}</span>
+                <span className="font-mono text-gray-300 text-right break-all">{value}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-3">
+            <div className="text-sm font-bold text-gray-300">🧮 驗證清單</div>
+
+            <CheckRow
+              label="合約 outcome 與本地重算一致"
+              ok={checks.outcomeOk}
+              expected={String(data.outcome)}
+              got={String(checks.localOutcome)}
+            />
+
+            {checks.full ? (
+              <>
+                <CheckRow label="玩家承諾 = keccak256(seed‖salt)" ok={checks.pOk}
+                  expected={data.playerCommit}
+                  got={commitHash(data.seeds.playerSeed, data.seeds.playerSalt)} />
+                <CheckRow label="莊家承諾 = keccak256(seed‖salt)" ok={checks.dOk}
+                  expected={data.dealerCommit}
+                  got={commitHash(data.seeds.dealerSeed, data.seeds.dealerSalt)} />
+                <CheckRow label="finalRandom = keccak256(seedP‖seedD)" ok={checks.finalOk}
+                  expected={data.finalRandom}
+                  got={combineSeeds(data.seeds.playerSeed, data.seeds.dealerSeed)} />
+              </>
+            ) : (
+              <div className="bg-amber-950/40 border border-amber-800 rounded-xl p-3 text-xs text-amber-300 leading-relaxed">
+                ℹ️ 未能從結算交易取回種子（RPC 可能限制歷史日誌查詢範圍），
+                因此略過承諾驗證。上方「outcome 一致」已可證明<strong>合約未謊報遊戲結果</strong>；
+                完整驗證需種子，可由玩家提供或改用支援完整日誌查詢的 RPC。
+              </div>
+            )}
+          </div>
+
+          {data.settleTxHash && (
+            <div className="text-center">
+              <a href={`${CURRENT_CHAIN.explorerUrl}/tx/${data.settleTxHash}`}
+                 target="_blank" rel="noreferrer"
+                 className="text-xs text-electric-400 hover:text-electric-300 underline">
+                查看結算交易 ↗
+              </a>
+            </div>
+          )}
         </div>
       )}
     </div>

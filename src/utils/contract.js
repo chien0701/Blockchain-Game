@@ -57,53 +57,8 @@ function parseEvent(contract, receipt, eventName) {
 
 // ─── 網路檢查 ─────────────────────────────────────────────────────────────────
 
-/**
- * 確認目前 MetaMask 網路是否正確
- * @returns {{ ok: boolean, current: number, expected: number }}
- */
-export async function checkNetwork(provider) {
-  const { chainId } = await provider.getNetwork();
-  return {
-    ok:       Number(chainId) === SUPPORTED_CHAIN_ID,
-    current:  Number(chainId),
-    expected: SUPPORTED_CHAIN_ID,
-  };
-}
-
-/**
- * 要求 MetaMask 切換到正確網路
- * 若網路不存在，自動加入 Arbitrum Sepolia
- */
-export async function switchNetwork() {
-  if (!window.ethereum) throw new Error('找不到 MetaMask');
-
-  const chainHex = `0x${SUPPORTED_CHAIN_ID.toString(16)}`;
-
-  try {
-    await window.ethereum.request({
-      method: 'wallet_switchEthereumChain',
-      params: [{ chainId: chainHex }],
-    });
-  } catch (err) {
-    // 4902 = 網路不存在，嘗試加入
-    if (err.code === 4902 && CURRENT_CHAIN.rpcUrl) {
-      await window.ethereum.request({
-        method: 'wallet_addEthereumChain',
-        params: [{
-          chainId:         chainHex,
-          chainName:       CURRENT_CHAIN.name,
-          rpcUrls:         [CURRENT_CHAIN.rpcUrl],
-          nativeCurrency:  { name: 'ETH', symbol: 'ETH', decimals: 18 },
-          blockExplorerUrls: CURRENT_CHAIN.explorerUrl
-            ? [CURRENT_CHAIN.explorerUrl]
-            : [],
-        }],
-      });
-    } else {
-      throw err;
-    }
-  }
-}
+// 註：網路檢查與切換統一由 context/WalletContext.jsx 提供
+//     （isWrongNetwork、switchToSupportedNetwork），此處不再重複實作。
 
 // ─── 核心合約呼叫 ─────────────────────────────────────────────────────────────
 
@@ -174,15 +129,6 @@ export async function revealGame(signer, chainGameId, playerSeed, playerSalt, de
 
 /** GameState enum 對應 */
 export const GameState = { None: 0, Committed: 1, Revealed: 2 };
-
-/**
- * 查詢鏈上遊戲狀態（0=None, 1=Committed, 2=Revealed）
- */
-export async function getOnChainState(provider, chainGameId) {
-  const contract = getReadContract(provider);
-  const state = await contract.getState(BigInt(chainGameId));
-  return Number(state);
-}
 
 /**
  * 查詢完整遊戲資料（供驗證器使用）
@@ -269,6 +215,64 @@ export async function settleBetOnChain(signer, betId, playerSeed, playerSalt, de
 export async function getPoolBalance(provider) {
   const fb = getFairBet(provider);
   return ethers.formatEther(await fb.poolBalance());
+}
+
+/** FairBet 的 BetState enum */
+export const BetState = { None: 0, Placed: 1, Settled: 2 };
+
+/**
+ * 查詢一筆下注的鏈上資料（供第三方驗證）
+ *
+ * 注意：FairBet 的 Bet struct 不儲存種子與 salt，它們只存在於 settleBet
+ * 的交易 calldata 中。因此本函式會嘗試從結算交易反解出種子：
+ *   1. getBet() 取得承諾、finalRandom、outcome、payout
+ *   2. 以 BetSettled 事件定位結算交易
+ *   3. 解碼該交易 calldata 取回 seed / salt
+ * 若步驟 2-3 因 RPC 限制失敗，仍回傳步驟 1 的資料（降級為部分驗證）。
+ */
+export async function getBetData(provider, betId) {
+  const fb = getFairBet(provider);
+  const b  = await fb.getBet(BigInt(betId));
+
+  const data = {
+    player:       b.player,
+    gameType:     Number(b.gameType),
+    betType:      Number(b.betType),
+    param:        b.param.toString(),
+    amountEth:    ethers.formatEther(b.amount),
+    playerCommit: b.playerCommit,
+    dealerCommit: b.dealerCommit,
+    finalRandom:  b.finalRandom,
+    outcome:      Number(b.outcome),
+    payoutEth:    ethers.formatEther(b.payout),
+    state:        Number(b.state),
+    placedAt:     Number(b.placedAt),
+    settledAt:    Number(b.settledAt),
+    seeds:        null,
+    settleTxHash: null,
+  };
+
+  if (data.state !== BetState.Settled) return data;
+
+  try {
+    const logs = await fb.queryFilter(fb.filters.BetSettled(BigInt(betId)));
+    if (logs.length > 0) {
+      const txHash = logs[logs.length - 1].transactionHash;
+      const tx = await provider.getTransaction(txHash);
+      const decoded = fb.interface.decodeFunctionData('settleBet', tx.data);
+      data.settleTxHash = txHash;
+      data.seeds = {
+        playerSeed: decoded[1],
+        playerSalt: decoded[2],
+        dealerSeed: decoded[3],
+        dealerSalt: decoded[4],
+      };
+    }
+  } catch {
+    // RPC 可能限制歷史日誌查詢範圍；降級為部分驗證
+  }
+
+  return data;
 }
 
 export function getFairBetUrl() {

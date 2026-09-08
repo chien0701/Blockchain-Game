@@ -93,26 +93,38 @@ export default function Lab() {
   const [running, setRunning] = useState(false);
   const [res, setRes] = useState(null);
 
+  const [progress, setProgress] = useState(0);
+
   const run = () => {
-    setRunning(true);
-    setTimeout(() => {
-      const g = GAMES[gameKey];
-      let wins = 0, totalPayout = 0;
-      const samples = [];
-      const step = Math.max(1, Math.floor(n/80));
-      for (let i = 1; i <= n; i++) {
+    setRunning(true); setProgress(0); setRes(null);
+    const g = GAMES[gameKey];
+    const samples = [];
+    const step  = Math.max(1, Math.floor(n / 80));
+    const CHUNK = 2000;
+    let i = 0, wins = 0, totalPayout = 0;
+
+    const tick = () => {
+      const end = Math.min(i + CHUNK, n);
+      for (; i < end; i++) {
         const { win, mult } = g.single(randHex());
         if (win) wins++;
         totalPayout += mult;
-        if (i % step === 0 || i === n) samples.push({ i, rtp: totalPayout/i });
+        const k = i + 1;
+        if (k % step === 0 || k === n) samples.push({ i: k, rtp: totalPayout / k });
       }
-      setRes({
-        empWin: wins/n, empRTP: totalPayout/n,
-        theoWin: g.theoWin, theoRTP: g.theoRTP,
-        formula: g.formula, n, samples,
-      });
-      setRunning(false);
-    }, 30);
+      setProgress(i / n);
+      if (i < n) {
+        requestAnimationFrame(tick);
+      } else {
+        setRes({
+          empWin: wins / n, empRTP: totalPayout / n,
+          theoWin: g.theoWin, theoRTP: g.theoRTP,
+          formula: g.formula, n, samples,
+        });
+        setRunning(false);
+      }
+    };
+    requestAnimationFrame(tick);
   };
 
   const g = GAMES[gameKey];
@@ -158,8 +170,14 @@ export default function Lab() {
         <button onClick={run} disabled={running}
           className="w-full bg-electric-600 hover:bg-electric-500 disabled:bg-ink-800 text-white
                      font-bold rounded-xl py-3 transition-colors">
-          {running ? '模擬中…' : `▶ 跑 ${n.toLocaleString()} 局模擬`}
+          {running ? `模擬中… ${Math.round(progress * 100)}%` : `▶ 跑 ${n.toLocaleString()} 局模擬`}
         </button>
+        {running && (
+          <div className="h-1.5 bg-ink-800 rounded-full overflow-hidden">
+            <div className="h-full bg-electric-500 transition-[width] duration-100"
+                 style={{ width: `${progress * 100}%` }} />
+          </div>
+        )}
       </div>
 
       {/* 結果 */}

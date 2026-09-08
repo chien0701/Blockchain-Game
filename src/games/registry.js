@@ -19,7 +19,6 @@ export const GAMES = [
     concept:   'commit-reveal',
     difficulty: 2,
     status:    'live',
-    minPlayers: 1,
   },
   {
     id:        'mining',
@@ -30,7 +29,6 @@ export const GAMES = [
     concept:   'pow',
     difficulty: 2,
     status:    'live',
-    minPlayers: 1,
   },
   {
     id:        'dice',
@@ -41,7 +39,6 @@ export const GAMES = [
     concept:   'pure-random',
     difficulty: 1,
     status:    'live',
-    minPlayers: 1,
   },
   {
     id:        'roulette',
@@ -52,7 +49,6 @@ export const GAMES = [
     concept:   'modulo-map',
     difficulty: 2,
     status:    'live',
-    minPlayers: 1,
   },
   {
     id:        'mastermind',
@@ -63,7 +59,6 @@ export const GAMES = [
     concept:   'immutable-commit',
     difficulty: 3,
     status:    'live',
-    minPlayers: 1,
   },
   {
     id:        'slots',
@@ -74,7 +69,6 @@ export const GAMES = [
     concept:   'slice-decode',
     difficulty: 2,
     status:    'live',
-    minPlayers: 1,
   },
   {
     id:        'crash',
@@ -85,7 +79,6 @@ export const GAMES = [
     concept:   'variable-payout',
     difficulty: 3,
     status:    'live',
-    minPlayers: 1,
   },
   {
     id:        'limbo',
@@ -96,7 +89,6 @@ export const GAMES = [
     concept:   'variable-payout',
     difficulty: 2,
     status:    'live',
-    minPlayers: 1,
   },
   {
     id:        'wheel',
@@ -107,7 +99,6 @@ export const GAMES = [
     concept:   'modulo-map',
     difficulty: 1,
     status:    'live',
-    minPlayers: 1,
   },
   {
     id:        'plinko',
@@ -118,7 +109,6 @@ export const GAMES = [
     concept:   'distribution',
     difficulty: 2,
     status:    'live',
-    minPlayers: 1,
   },
   {
     id:        'revolver',
@@ -129,7 +119,6 @@ export const GAMES = [
     concept:   'variable-payout',
     difficulty: 3,
     status:    'live',
-    minPlayers: 1,
   },
 ];
 

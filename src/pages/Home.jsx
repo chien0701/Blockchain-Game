@@ -58,7 +58,7 @@ export default function Home() {
         </div>
 
         {/* faint hash backdrop */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.04]
+        <div aria-hidden="true" className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.04]
                         font-mono text-[10px] text-electric-300 leading-5 select-none break-all px-6">
           {Array.from({ length: 18 }).map((_, i) => (
             <div key={i}>

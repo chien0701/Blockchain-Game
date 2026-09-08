@@ -24,6 +24,12 @@ jobs:
 
       - name: 編譯專案
         run: npx vite build
+        env:
+          # 合約地址為公開資訊（Etherscan 可查），不需使用 Secret
+          # ⚠️ 重新部署合約後必須同步更新這裡，否則線上站會指向舊合約
+          VITE_CONTRACT_ADDRESS: "0xe9C2a98699FEd3653774783160e65556f7B6aDB3"
+          VITE_FAIRBET_ADDRESS: "0x25A753d62A0030680C92473681e4BD52BA42A7e8"
+          VITE_CHAIN_ID: "11155111"
 
       - name: 部署到 GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

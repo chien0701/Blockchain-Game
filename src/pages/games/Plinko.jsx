@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBetting } from '../../hooks/useBetting';
 import CommitRevealFlow, { BetPanel, SettlementBanner } from '../../components/CommitRevealFlow';
-import { ResultBanner, CryptoProof, ResultActions } from '../../components/GameResult';
+import { ResultBanner, CryptoProof, ResultActions, SimulationNotice } from '../../components/GameResult';
 import { plinkoBucket, PLINKO, bpsToX } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
 import { saveGame, getPref, setPref } from '../../utils/storage';
@@ -86,6 +86,7 @@ function PlinkoRound({ onPlayAgain }) {
               </div>
             )}
           </div>
+          {!cr.onChain && <SimulationNotice />}
           <CryptoProof finalRandom={cr.finalRandom} chainGameId={cr.chainGameId}
             commitTxHash={cr.commitTxHash} revealTxHash={cr.revealTxHash} />
           <ResultActions gameId={gameId} onPlayAgain={onPlayAgain} />

@@ -24,3 +24,11 @@ contracts/deployment.json
 contracts/gas-report.txt
 contracts/slither-raw.txt
 contracts/slither-report.md
+
+contracts/deployments/localhost.json
+contracts/deployments/hardhat.json
+
+# 專題本圖檔需進版控（上方 *.png 規則的例外）
+!docs/專題本/圖/*.png
+docs/專題本/*_備份_*.docx
+.claude/launch.json

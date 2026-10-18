@@ -1,61 +1,35 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  intFromHex, crashBps, wheelSeg, WHEEL, plinkoBucket, PLINKO, revolverChamber,
-} from '../games/random';
+import { resolveBet, WHEEL, PLINKO } from '../games/random';
 
-const RED = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
-
-// 16 取 k 的二項係數（Pascal 第 16 列）
 const C16 = [1,16,120,560,1820,4368,8008,11440,12870,11440,8008,4368,1820,560,120,16,1];
+const UNIT = 1_000_000n;
 
 const randHex = () =>
   '0x' + [...crypto.getRandomValues(new Uint8Array(32))].map(b => b.toString(16).padStart(2,'0')).join('');
 
-// 每款遊戲：single(fr)->{win, mult}、理論勝率、理論 RTP、公式說明
+/** 與合約相同的 resolveBet 計算賠付；「勝」= 淨贏（賠付 > 注金） */
+const play = (g, bt, param) => (fr) => {
+  const mult = Number(resolveBet(g, bt, param, UNIT, fr).payout) / Number(UNIT);
+  return { win: mult > 1, mult };
+};
+
 const GAMES = {
-  crash2: {
-    label: '🚀 Crash（目標 2×）', formula: 'P(crash≥2)=1/2，RTP=2×½=1',
-    single: (fr) => { const m = crashBps(fr)/10000; return { win: m>=2, mult: m>=2?2:0 }; },
-    theoWin: 0.5, theoRTP: 1,
-  },
-  dice_big: {
-    label: '🎲 骰子（押大 4-6）', formula: 'P=3/6，RTP=½×2=1',
-    single: (fr) => { const r = intFromHex(fr,0,4)%6+1; return { win: r>=4, mult: r>=4?2:0 }; },
-    theoWin: 0.5, theoRTP: 1,
-  },
-  roulette_red: {
-    label: '🎡 輪盤（押紅）', formula: 'P=18/37，RTP=18/37×2=36/37≈0.973',
-    single: (fr) => { const n = intFromHex(fr,0,4)%37; return { win: RED.has(n), mult: RED.has(n)?2:0 }; },
-    theoWin: 18/37, theoRTP: 36/37,
-  },
-  roulette_num: {
-    label: '🎡 輪盤（單號 7，30×）', formula: 'P=1/37，RTP=1/37×30=30/37≈0.811',
-    single: (fr) => { const n = intFromHex(fr,0,4)%37; return { win: n===7, mult: n===7?30:0 }; },
-    theoWin: 1/37, theoRTP: 30/37,
-  },
+  crash2:       { label: '🚀 Crash（目標 2×）',      formula: 'P(crash≥2)=1/2，RTP=2×½=1',            single: play(4, 0, 20000), theoWin: 0.5,   theoRTP: 1 },
+  dice_big:     { label: '🎲 骰子（押大 4-6）',       formula: 'P=3/6，RTP=½×2=1',                      single: play(0, 0, 0),     theoWin: 0.5,   theoRTP: 1 },
+  roulette_red: { label: '🎡 輪盤（押紅）',           formula: 'P=18/37，RTP=18/37×2≈0.973',            single: play(2, 0, 0),     theoWin: 18/37, theoRTP: 36/37 },
+  roulette_num: { label: '🎡 輪盤（單號 7，30×）',    formula: 'P=1/37，RTP=30/37≈0.811',               single: play(2, 6, 7),     theoWin: 1/37,  theoRTP: 30/37 },
   wheel: {
-    label: '🎡 幸運轉盤', formula: 'RTP = 平均倍率 = 70000/8/10000 = 0.875',
-    single: (fr) => { const m = WHEEL[wheelSeg(fr)]/10000; return { win: m>0, mult: m }; },
-    theoWin: WHEEL.filter(x=>x>0).length/8,
-    theoRTP: WHEEL.reduce((a,b)=>a+b,0)/8/10000,
+    label: '🎡 幸運轉盤', formula: 'RTP = 平均倍率 = 70000/8/10000 = 0.875', single: play(6, 0, 0),
+    theoWin: WHEEL.filter(x => x > 10000).length / 8, theoRTP: WHEEL.reduce((a,b)=>a+b,0)/8/10000,
   },
   plinko: {
-    label: '🔻 Plinko', formula: 'RTP = Σ C(16,k)/2¹⁶ × 倍率(k)',
-    single: (fr) => { const m = PLINKO[plinkoBucket(fr)]/10000; return { win: m>=1, mult: m }; },
-    theoWin: C16.reduce((a,c,k)=> a + (PLINKO[k]>=10000 ? c : 0), 0)/65536,
+    label: '🔻 Plinko', formula: 'RTP = Σ C(16,k)/2¹⁶ × 倍率(k)；1.0× 退本金不算贏', single: play(7, 0, 0),
+    theoWin: C16.reduce((a,c,k)=> a + (PLINKO[k] > 10000 ? c : 0), 0)/65536,
     theoRTP: C16.reduce((a,c,k)=> a + c*PLINKO[k], 0)/65536/10000,
   },
-  limbo2: {
-    label: '💥 Limbo（目標 2×）', formula: 'P(roll≥2)=1/2，RTP=1',
-    single: (fr) => { const m = crashBps(fr)/10000; return { win: m>=2, mult: m>=2?2:0 }; },
-    theoWin: 0.5, theoRTP: 1,
-  },
-  revolver3: {
-    label: '🔫 左輪（裝 3 發）', formula: 'P存活=3/6，RTP=½×2=1',
-    single: (fr) => { const c = revolverChamber(fr); return { win: c>=3, mult: c>=3?2:0 }; },
-    theoWin: 0.5, theoRTP: 1,
-  },
+  limbo2:       { label: '💥 Limbo（目標 2×）',      formula: 'P(roll≥2)=1/2，RTP=1',                  single: play(5, 0, 20000), theoWin: 0.5,   theoRTP: 1 },
+  revolver3:    { label: '🔫 左輪（裝 3 發）',        formula: 'P存活=3/6，RTP=½×2=1',                  single: play(8, 3, 0),     theoWin: 0.5,   theoRTP: 1 },
 };
 
 const N_OPTS = [1000, 10000, 50000];
@@ -101,7 +75,7 @@ export default function Lab() {
     const samples = [];
     const step  = Math.max(1, Math.floor(n / 80));
     const CHUNK = 2000;
-    let i = 0, wins = 0, totalPayout = 0;
+    let i = 0, wins = 0, totalPayout = 0, totalSq = 0;
 
     const tick = () => {
       const end = Math.min(i + CHUNK, n);
@@ -109,6 +83,7 @@ export default function Lab() {
         const { win, mult } = g.single(randHex());
         if (win) wins++;
         totalPayout += mult;
+        totalSq += mult * mult;
         const k = i + 1;
         if (k % step === 0 || k === n) samples.push({ i: k, rtp: totalPayout / k });
       }
@@ -116,8 +91,11 @@ export default function Lab() {
       if (i < n) {
         requestAnimationFrame(tick);
       } else {
+        const mean = totalPayout / n;
+        const se = Math.sqrt(Math.max(totalSq / n - mean * mean, 0) / n);
         setRes({
-          empWin: wins / n, empRTP: totalPayout / n,
+          se, z: se > 0 ? (mean - g.theoRTP) / se : 0,
+          empWin: wins / n, empRTP: mean,
           theoWin: g.theoWin, theoRTP: g.theoRTP,
           formula: g.formula, n, samples,
         });
@@ -207,10 +185,21 @@ export default function Lab() {
             <ConvergenceChart samples={res.samples} theo={res.theoRTP} />
           </div>
 
-          <div className="bg-emerald-950/40 border border-emerald-800 rounded-xl p-4 text-sm text-emerald-300">
-            ✅ 實測 RTP {res.empRTP.toFixed(4)} 收斂至理論值 {res.theoRTP.toFixed(4)}（誤差 {errPct.toFixed(2)}%），
-            用數據驗證了合約結果函數的機率分布與公平性推導一致。局數越多，實測越貼近理論（大數法則）。
-          </div>
+          {Math.abs(res.z) <= 3 ? (
+            <div className="bg-emerald-950/40 border border-emerald-800 rounded-xl p-4 text-sm text-emerald-300 leading-relaxed">
+              ✅ 實測 RTP {res.empRTP.toFixed(4)}，理論 {res.theoRTP.toFixed(4)}，差距為 {Math.abs(res.z).toFixed(2)} 個標準誤
+              （SE = {res.se.toFixed(4)}），落在 3 個標準誤內，與「規則實作符合理論分布」一致。
+            </div>
+          ) : (
+            <div className="bg-amber-950/40 border border-amber-800 rounded-xl p-4 text-sm text-amber-300 leading-relaxed">
+              ⚠️ 實測 RTP {res.empRTP.toFixed(4)} 與理論 {res.theoRTP.toFixed(4)} 相差 {Math.abs(res.z).toFixed(2)} 個標準誤，
+              超過 3 個標準誤；請加大樣本重跑，若持續偏離代表實作或理論推導有誤。
+            </div>
+          )}
+          <p className="text-xs text-gray-500 leading-relaxed">
+            這裡只檢驗「規則算出的機率分布」，亂數由本機產生，不包含玩家挑選種子等攻擊行為，不能據此證明協議防作弊；
+            RTP 也未扣除每局的 gas，RTP = 1 不代表實際損益兩平。
+          </p>
         </div>
       )}
 

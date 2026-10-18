@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useBetting } from '../../hooks/useBetting';
 import CommitRevealFlow, { BetPanel, SettlementBanner } from '../../components/CommitRevealFlow';
 import { ResultBanner, CryptoProof, ResultActions, SimulationNotice } from '../../components/GameResult';
-import { crashBps, bpsToX } from '../../games/random';
+import { crashBps, bpsToX, winnerOf } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
 import { saveGame, getPref, setPref } from '../../utils/storage';
 
@@ -26,17 +26,12 @@ function CrashRound({ onPlayAgain }) {
     saved.current = true;
     const crashX = crashBps(cr.finalRandom) / 10000;
     const win = crashX >= target;
-    const consistent = cr.settlement ? cr.settlement.outcome === crashBps(cr.finalRandom) : null;
+    const consistent = cr.consistent;
     setOutcome({ crashX, win, consistent });
     saveGame({
-      gameId, gameType: 'crash', chainGameId: cr.chainGameId,
-      playerSeed: cr.playerSeed, playerSalt: cr.playerSalt,
-      dealerSeed: cr.dealerSeed, dealerSalt: cr.dealerSalt,
-      playerCommit: cr.playerCommit, dealerCommit: cr.dealerCommit,
-      finalRandom: cr.finalRandom,
-      result: { winner: win ? 'player' : 'dealer', reason: `崩於 ${crashX.toFixed(2)}×（目標 ${target}×）` },
-      betAmount: cr.isBetting ? amount : null, payout: cr.settlement?.payoutEth ?? null,
-      commitTxHash: cr.commitTxHash, revealTxHash: cr.revealTxHash,
+      ...cr.recordFields(),
+      gameId, gameType: 'crash',
+      result: { winner: winnerOf(cr.settlement.net), reason: `崩於 ${crashX.toFixed(2)}×（目標 ${target}×）` },
       timestamp: new Date().toISOString(),
     });
   }, [cr.phase]);

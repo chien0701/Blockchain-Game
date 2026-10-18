@@ -76,6 +76,58 @@ export function outcomeOf(gameType, finalRandom) {
   }
 }
 
+export const ROULETTE_RED = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
+
+/**
+ * 與 FairBet.resolve() 逐位元一致：回傳 { payout（wei, BigInt）, outcome }
+ * amount 以 wei 為單位（BigInt），倍率以 bps 整數運算、向下取整
+ */
+export function resolveBet(gameType, betType, param, amount, finalRandom) {
+  const g = Number(gameType), bt = Number(betType), p = BigInt(param), a = BigInt(amount);
+  const outcome = outcomeOf(g, finalRandom);
+  let payout = 0n;
+  switch (g) {
+    case 0: {
+      const won = bt === 0 ? outcome >= 4 : bt === 1 ? outcome <= 3 : bt === 2 ? outcome % 2 === 1 : outcome % 2 === 0;
+      payout = won ? a * 2n : 0n; break;
+    }
+    case 1: payout = bt === outcome ? a * 2n : 0n; break;
+    case 2: {
+      const n = outcome, red = ROULETTE_RED.has(n);
+      const won = bt === 0 ? red
+        : bt === 1 ? n !== 0 && !red
+        : bt === 2 ? n !== 0 && n % 2 === 1
+        : bt === 3 ? n !== 0 && n % 2 === 0
+        : bt === 4 ? n >= 1 && n <= 18
+        : bt === 5 ? n >= 19 && n <= 36
+        : BigInt(n) === p;
+      payout = won ? (bt === 6 ? a * 30n : a * 2n) : 0n; break;
+    }
+    case 3: {
+      const r = [Math.floor(outcome / 100), Math.floor(outcome / 10) % 10, outcome % 10];
+      if (r[0] === r[1] && r[1] === r[2]) payout = a * 8n;
+      else if (r[0] === r[1] || r[1] === r[2] || r[0] === r[2]) payout = a * 2n;
+      break;
+    }
+    case 4:
+    case 5: payout = BigInt(outcome) >= p ? a * p / 10000n : 0n; break;
+    case 6: payout = a * BigInt(WHEEL[outcome]) / 10000n; break;
+    case 7: payout = a * BigInt(PLINKO[outcome]) / 10000n; break;
+    case 8: payout = outcome >= bt ? a * 60000n / BigInt(6 - bt) / 10000n : 0n; break;
+    default: return null;
+  }
+  return { payout, outcome };
+}
+
+/** 依賠付與注金判定：'win' 淨贏、'push' 拿回本金、'lose' 淨輸 */
+export function netResult(payout, amount) {
+  const p = BigInt(payout), a = BigInt(amount);
+  return p > a ? 'win' : p === a ? 'push' : 'lose';
+}
+
+/** 淨結果 → 紀錄用的勝負 */
+export const winnerOf = (net) => (net === 'win' ? 'player' : net === 'push' ? 'draw' : 'dealer');
+
 /** 把 outcome 轉成人看得懂的敘述 */
 export function describeOutcome(gameType, outcome) {
   switch (Number(gameType)) {

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useBetting } from '../../hooks/useBetting';
 import CommitRevealFlow, { BetPanel, SettlementBanner } from '../../components/CommitRevealFlow';
 import { ResultBanner, CryptoProof, ResultActions, SimulationNotice } from '../../components/GameResult';
-import { plinkoBucket, PLINKO, bpsToX } from '../../games/random';
+import { plinkoBucket, PLINKO, bpsToX, winnerOf } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
 import { saveGame, getPref, setPref } from '../../utils/storage';
 
@@ -25,18 +25,14 @@ function PlinkoRound({ onPlayAgain }) {
     saved.current = true;
     const bucket = plinkoBucket(cr.finalRandom);
     const mult = PLINKO[bucket] / 10000;
-    const win = mult >= 1;
-    const consistent = cr.settlement ? cr.settlement.outcome === bucket : null;
-    setOutcome({ bucket, mult, win, consistent });
+    const win = cr.settlement.net === 'win';
+    const draw = cr.settlement.net === 'push';
+    const consistent = cr.consistent;
+    setOutcome({ bucket, mult, win, draw, consistent });
     saveGame({
-      gameId, gameType: 'plinko', chainGameId: cr.chainGameId,
-      playerSeed: cr.playerSeed, playerSalt: cr.playerSalt,
-      dealerSeed: cr.dealerSeed, dealerSalt: cr.dealerSalt,
-      playerCommit: cr.playerCommit, dealerCommit: cr.dealerCommit,
-      finalRandom: cr.finalRandom,
-      result: { winner: win ? 'player' : 'dealer', reason: `Plinko ${mult}×` },
-      betAmount: cr.isBetting ? amount : null, payout: cr.settlement?.payoutEth ?? null,
-      commitTxHash: cr.commitTxHash, revealTxHash: cr.revealTxHash,
+      ...cr.recordFields(),
+      gameId, gameType: 'plinko',
+      result: { winner: winnerOf(cr.settlement.net), reason: `Plinko ${mult}×` },
       timestamp: new Date().toISOString(),
     });
   }, [cr.phase]);
@@ -68,8 +64,9 @@ function PlinkoRound({ onPlayAgain }) {
     <CommitRevealFlow cr={crForFlow} title="Plinko 彈珠" revealLabel="投球！" betSlot={betSlot} loaderTheme="plinko">
       {outcome && (
         <div className="space-y-6 animate-fade-in-up">
-          <ResultBanner win={outcome.win} title={outcome.mult >= 5 ? `💎 ${outcome.mult}×！` : outcome.win ? `${outcome.mult}×` : `${outcome.mult}×`}
-            sub={`彈珠落在第 ${outcome.bucket + 1} 槽`} />
+          <ResultBanner win={outcome.win} draw={outcome.draw}
+            title={outcome.mult >= 5 ? `💎 ${outcome.mult}×！` : `${outcome.mult}×`}
+            sub={`彈珠落在第 ${outcome.bucket + 1} 槽 · ${outcome.win ? '淨贏' : outcome.draw ? '退回本金' : '淨輸'}`} />
           {cr.isBetting && <SettlementBanner settlement={cr.settlement} amountEth={amount} />}
           <div className="bg-gradient-to-b from-electric-950 to-ink-900 border border-electric-800 rounded-2xl p-8">
             <div className="flex justify-center gap-0.5 flex-wrap">

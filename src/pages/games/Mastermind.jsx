@@ -3,7 +3,7 @@ import StepBar from '../../components/StepBar';
 import { ErrorBox } from '../../components/CommitRevealFlow';
 import { ResultBanner, CryptoProof, ResultActions } from '../../components/GameResult';
 import { useCommitReveal } from '../../hooks/useCommitReveal';
-import { intFromHex } from '../../games/random';
+import { mastermindSecret, RNG_VERSION } from '../../utils/gameLogic';
 import { shortenHash, newGameId } from '../../utils/crypto';
 import { saveGame } from '../../utils/storage';
 
@@ -36,8 +36,7 @@ function MastermindRound({ onPlayAgain }) {
   const [status, setStatus]   = useState('playing'); // playing | won | lost
   const saved = useRef(false);
 
-  const secretFromSeed = () =>
-    Array.from({ length: LEN }, (_, i) => intFromHex(cr.dealerSeed, i, 1) % 6);
+  const secretFromSeed = () => mastermindSecret(cr.dealerSeed, LEN, COLORS.length);
 
   const startPlay = async () => {
     await cr.commit();
@@ -60,7 +59,7 @@ function MastermindRound({ onPlayAgain }) {
 
   const finish = async (result, allGuesses) => {
     setStatus(result);
-    await cr.reveal();
+    const finalRandom = await cr.reveal();
     if (saved.current) return;
     saved.current = true;
     saveGame({
@@ -68,7 +67,7 @@ function MastermindRound({ onPlayAgain }) {
       playerSeed: cr.playerSeed, playerSalt: cr.playerSalt,
       dealerSeed: cr.dealerSeed, dealerSalt: cr.dealerSalt,
       playerCommit: cr.playerCommit, dealerCommit: cr.dealerCommit,
-      finalRandom: cr.finalRandom,
+      finalRandom, rng: RNG_VERSION, guesses: allGuesses.map((g) => g.pegs),
       result: { winner: result === 'won' ? 'player' : 'dealer', reason: `${allGuesses.length} 次猜測` },
       commitTxHash: cr.commitTxHash, revealTxHash: cr.revealTxHash,
       timestamp: new Date().toISOString(),

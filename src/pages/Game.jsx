@@ -8,7 +8,7 @@ import {
   combineSeeds, shortenHash, mockTxHash,
 } from '../utils/crypto';
 import {
-  createDeck, calcScore, determineWinner,
+  createDeck, calcScore, determineWinner, RNG_VERSION,
 } from '../utils/gameLogic';
 import { saveGame } from '../utils/storage';
 import {
@@ -16,7 +16,7 @@ import {
   revealGame  as contractReveal,
   getTxUrl,
 } from '../utils/contract';
-import { IS_ON_CHAIN } from '../config/contractConfig';
+import { IS_ON_CHAIN, CURRENT_CHAIN } from '../config/contractConfig';
 
 /* ── 共用 UI ─────────────────────────────────────────────────────────────── */
 
@@ -108,7 +108,7 @@ function CommitPhase({ playerSeed, playerCommit, dealerSeed, dealerCommit,
         <div className="flex items-center gap-2 bg-emerald-950/40 border border-emerald-800
                         rounded-xl px-4 py-2.5 text-sm text-emerald-300">
           <span>⛓️</span>
-          <span>真實上鏈模式 — 交易將送至 Arbitrum Sepolia</span>
+          <span>真實上鏈模式 — 交易將送至 {CURRENT_CHAIN.name}</span>
         </div>
       ) : (
         <div className="flex items-center gap-2 bg-amber-950/40 border border-amber-800
@@ -445,7 +445,7 @@ function parseError(err) {
   if (msg.includes('insufficient funds'))
     return '錢包餘額不足以支付 Gas 費用，請先領取測試幣。';
   if (msg.includes('network') || msg.includes('could not detect'))
-    return '網路連線異常，請確認 MetaMask 已連上 Arbitrum Sepolia。';
+    return `網路連線異常，請確認 MetaMask 已連上 ${CURRENT_CHAIN.name}。`;
   if (msg.includes('InvalidPlayerHash'))
     return '玩家種子 Hash 驗證失敗（前端與合約計算不一致）。';
   if (msg.includes('InvalidDealerHash'))
@@ -587,7 +587,7 @@ export default function Game() {
       gameId, chainGameId, gameType: 'blackjack',
       playerSeed, playerSalt, dealerSeed, dealerSalt,
       playerCommit, dealerCommit,
-      finalRandom: combined, playerHand: ph, dealerHand: dh,
+      finalRandom: combined, playerHand: ph, dealerHand: dh, rng: RNG_VERSION,
       result: res,
       commitTxHash, revealTxHash,
       timestamp: new Date().toISOString(),

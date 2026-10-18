@@ -16,17 +16,32 @@ jobs:
       - name: 安裝 Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            contracts/package-lock.json
 
-      - name: 安裝套件
+      - name: 安裝前端套件
         run: npm ci
+
+      - name: 前端測試（任何一項失敗即停止部署）
+        run: npm test
+
+      - name: 安裝合約套件
+        working-directory: contracts
+        run: npm ci
+
+      - name: 合約測試（含前端 random.js ↔ Solidity 一致性、ABI 一致性、安全回歸）
+        working-directory: contracts
+        run: npx hardhat test
 
       - name: 編譯專案
         run: npx vite build
         env:
-          # 合約地址為公開資訊（Etherscan 可查），不需使用 Secret
-          # ⚠️ 重新部署合約後必須同步更新這裡，否則線上站會指向舊合約
+          # 合約地址為公開資訊，不需使用 Secret
+          # ⚠️ FairBet v3 部署後必須把 VITE_FAIRBET_ADDRESS 改成 v3 地址；
+          #    仍指向 v2 時前端會停用下注（v2 有已知協議缺陷，見 docs/TA_FEEDBACK_RESPONSE.md）
           VITE_CONTRACT_ADDRESS: "0xe9C2a98699FEd3653774783160e65556f7B6aDB3"
           VITE_FAIRBET_ADDRESS: "0x25A753d62A0030680C92473681e4BD52BA42A7e8"
           VITE_CHAIN_ID: "11155111"

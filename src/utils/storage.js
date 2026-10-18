@@ -12,7 +12,8 @@
 const PREFIX     = 'fairchain';
 const gameKey    = (id) => `${PREFIX}_game_${id}`;
 const INDEX_KEY  = `${PREFIX}_index`;
-const MAX_INDEX  = 50;
+export const MAX_INDEX = 50;
+const PENDING_KEY = `${PREFIX}_pending`;
 
 /* ── 低階安全包裝 ─────────────────────────────────────────────── */
 
@@ -92,6 +93,28 @@ export function clearAllGames() {
   try { localStorage.removeItem(INDEX_KEY); } catch { /* ignore */ }
 }
 
+/* ── 未完成的下注（重整、拒簽、斷線後恢復同一局）──────────────────────
+ * 送出 placeBet 前先寫入（含種子與 salt），收到 receipt 後補上 betId 與 revealBlock，
+ * 結算成功或確認過期後才移除。以承諾值為鍵，同一承諾不會變成兩局。
+ */
+
+export function listPendingBets() {
+  return safeGet(PENDING_KEY) ?? [];
+}
+
+export function savePendingBet(pending) {
+  const rest = listPendingBets().filter((p) => p.commit !== pending.commit);
+  return safeSet(PENDING_KEY, [pending, ...rest]);
+}
+
+export function updatePendingBet(commit, patch) {
+  safeSet(PENDING_KEY, listPendingBets().map((p) => (p.commit === commit ? { ...p, ...patch } : p)));
+}
+
+export function removePendingBet(commit) {
+  safeSet(PENDING_KEY, listPendingBets().filter((p) => p.commit !== commit));
+}
+
 /* ── UI 偏好（快速模式、上次押注等）──────────────────────────────── */
 
 export function getPref(key, fallback = null) {
@@ -105,8 +128,9 @@ export function setPref(key, value) {
 /* ── 統計聚合（供統計頁使用）────────────────────────────────────── */
 
 /**
- * 從索引計算統計摘要
- * @returns {{ total, wins, losses, draws, winRate, onChainCount, mockCount, byGame }}
+ * 從索引計算統計摘要。
+ * 注意：索引只保留本瀏覽器最近 MAX_INDEX 局，所有數字都是這個窗口內的值，
+ * 不是全期間累計，也不代表其他使用者或鏈上全部下注。
  */
 export function getStats() {
   const index = listGames();
@@ -122,6 +146,8 @@ export function getStats() {
     totalWagered: 0,
     totalNet:     0,
     betCount:     0,
+    window:       MAX_INDEX,
+    truncated:    index.length >= MAX_INDEX,
   };
 
   for (const g of index) {

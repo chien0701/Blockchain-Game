@@ -53,7 +53,7 @@ export default function Stats() {
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white mt-1">📊 戰績統計</h1>
-          <p className="text-gray-500 mt-1">基於本瀏覽器的遊戲紀錄</p>
+          <p className="text-gray-500 mt-1">本瀏覽器最近 {stats.window} 局的紀錄{stats.truncated ? `（更早的局已不在統計內）` : ''}，不是全期間累計，也不代表其他玩家</p>
         </div>
         {!empty && (
           <button onClick={clear}

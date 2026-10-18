@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useBetting } from '../../hooks/useBetting';
 import CommitRevealFlow, { BetPanel, SettlementBanner } from '../../components/CommitRevealFlow';
 import { ResultBanner, CryptoProof, ResultActions, SimulationNotice } from '../../components/GameResult';
-import { crashBps } from '../../games/random';
+import { crashBps, winnerOf } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
 import { saveGame, getPref, setPref } from '../../utils/storage';
 
@@ -26,17 +26,12 @@ function LimboRound({ onPlayAgain }) {
     saved.current = true;
     const rolledX = crashBps(cr.finalRandom) / 10000;
     const win = rolledX >= target;
-    const consistent = cr.settlement ? cr.settlement.outcome === crashBps(cr.finalRandom) : null;
+    const consistent = cr.consistent;
     setOutcome({ rolledX, win, consistent });
     saveGame({
-      gameId, gameType: 'limbo', chainGameId: cr.chainGameId,
-      playerSeed: cr.playerSeed, playerSalt: cr.playerSalt,
-      dealerSeed: cr.dealerSeed, dealerSalt: cr.dealerSalt,
-      playerCommit: cr.playerCommit, dealerCommit: cr.dealerCommit,
-      finalRandom: cr.finalRandom,
-      result: { winner: win ? 'player' : 'dealer', reason: `擲出 ${rolledX.toFixed(2)}×（目標 ${target}×）` },
-      betAmount: cr.isBetting ? amount : null, payout: cr.settlement?.payoutEth ?? null,
-      commitTxHash: cr.commitTxHash, revealTxHash: cr.revealTxHash,
+      ...cr.recordFields(),
+      gameId, gameType: 'limbo',
+      result: { winner: winnerOf(cr.settlement.net), reason: `擲出 ${rolledX.toFixed(2)}×（目標 ${target}×）` },
       timestamp: new Date().toISOString(),
     });
   }, [cr.phase]);

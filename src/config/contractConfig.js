@@ -1,19 +1,17 @@
 /**
  * 合約設定
  *
- * 部署完成後，把合約地址填入 .env：
- *   VITE_CONTRACT_ADDRESS=0x...
- *   VITE_CHAIN_ID=421614        (Arbitrum Sepolia)
- *   VITE_CHAIN_ID=31337         (本地 Hardhat)
+ * .env：
+ *   VITE_CONTRACT_ADDRESS=0x...   GameCommitReveal（21 點、猜數字的公平性展示）
+ *   VITE_FAIRBET_ADDRESS=0x...    FairBet v3（下注）
+ *   VITE_CHAIN_ID=11155111        Ethereum Sepolia；本地 Hardhat 為 31337
  *
- * 若環境變數未設定，自動退回 mock 模式（純前端模擬）。
+ * 未設定地址時自動退回模擬模式。
  */
 
-export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || '';
+import { COMMIT_REVEAL_ABI, FAIRBET_V3_ABI, FAIRBET_V2_ABI } from './abi';
 
-export const SUPPORTED_CHAIN_ID = Number(
-  import.meta.env.VITE_CHAIN_ID || 11155111   // 預設 Ethereum Sepolia
-);
+export const SUPPORTED_CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 11155111);
 
 export const CHAIN_CONFIG = {
   11155111: {
@@ -39,202 +37,40 @@ export const CHAIN_CONFIG = {
   },
 };
 
-/** 目前設定的網路資訊 */
 export const CURRENT_CHAIN = CHAIN_CONFIG[SUPPORTED_CHAIN_ID] ?? CHAIN_CONFIG[11155111];
 
-/** 是否已設定合約地址（用來判斷是否啟用真實上鏈模式） */
+export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || '';
 export const IS_ON_CHAIN = Boolean(CONTRACT_ADDRESS);
+export const CONTRACT_ABI = COMMIT_REVEAL_ABI;
 
-/** FairBet 下注合約（骰子/硬幣/輪盤/拉霸 的真實鏈上下注） */
-export const FAIRBET_ADDRESS = import.meta.env.VITE_FAIRBET_ADDRESS || '';
+/**
+ * v2 有已知協議缺陷（玩家可提交雙方承諾，下注前即知結果），僅保留供查驗舊局。
+ * 若 .env 仍指向 v2 地址，視為未設定 v3，避免以 v3 ABI 呼叫 v2 合約。
+ */
+export const FAIRBET_V2 = {
+  version:     2,
+  label:       'v2（已停用）',
+  chainId:     11155111,
+  address:     '0x25A753d62A0030680C92473681e4BD52BA42A7e8',
+  abi:         FAIRBET_V2_ABI,
+  deployedAt:  '2026-07-08T05:40:48Z',
+  protocol:    'dual-seed',
+};
+
+const envFairBet = import.meta.env.VITE_FAIRBET_ADDRESS || '';
+export const FAIRBET_ADDRESS =
+  envFairBet.toLowerCase() === FAIRBET_V2.address.toLowerCase() ? '' : envFairBet;
 export const IS_BETTING = Boolean(FAIRBET_ADDRESS);
+export const FAIRBET_ABI = FAIRBET_V3_ABI;
 
-// ─── ABI（只包含前端需要的函式與事件）────────────────────────────────────────
-export const CONTRACT_ABI = [
-  // commitGame(bytes32 playerCommit, bytes32 dealerCommit) returns (uint256 gameId)
-  {
-    type:    'function',
-    name:    'commitGame',
-    inputs:  [
-      { name: 'playerCommit', type: 'bytes32' },
-      { name: 'dealerCommit', type: 'bytes32' },
-    ],
-    outputs: [{ name: 'gameId', type: 'uint256' }],
-    stateMutability: 'nonpayable',
-  },
+export const FAIRBET_V3 = {
+  version:  3,
+  label:    'v3（目前）',
+  chainId:  SUPPORTED_CHAIN_ID,
+  address:  FAIRBET_ADDRESS,
+  abi:      FAIRBET_V3_ABI,
+  protocol: 'future-blockhash',
+};
 
-  // revealGame(uint256 gameId, bytes32 playerSeed, bytes32 playerSalt, bytes32 dealerSeed, bytes32 dealerSalt)
-  {
-    type:    'function',
-    name:    'revealGame',
-    inputs:  [
-      { name: 'gameId',     type: 'uint256' },
-      { name: 'playerSeed', type: 'bytes32' },
-      { name: 'playerSalt', type: 'bytes32' },
-      { name: 'dealerSeed', type: 'bytes32' },
-      { name: 'dealerSalt', type: 'bytes32' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-
-  // getGame(uint256 gameId) returns (...)
-  {
-    type:    'function',
-    name:    'getGame',
-    inputs:  [{ name: 'gameId', type: 'uint256' }],
-    outputs: [
-      { name: 'player',       type: 'address' },
-      { name: 'playerCommit', type: 'bytes32' },
-      { name: 'dealerCommit', type: 'bytes32' },
-      { name: 'playerSeed',   type: 'bytes32' },
-      { name: 'playerSalt',   type: 'bytes32' },
-      { name: 'dealerSeed',   type: 'bytes32' },
-      { name: 'dealerSalt',   type: 'bytes32' },
-      { name: 'finalRandom',  type: 'bytes32' },
-      { name: 'state',        type: 'uint8'   },
-      { name: 'committedAt',  type: 'uint256' },
-      { name: 'revealedAt',   type: 'uint256' },
-    ],
-    stateMutability: 'view',
-  },
-
-  // getState(uint256 gameId) returns (uint8)
-  {
-    type:    'function',
-    name:    'getState',
-    inputs:  [{ name: 'gameId', type: 'uint256' }],
-    outputs: [{ name: 'state',  type: 'uint8'   }],
-    stateMutability: 'view',
-  },
-
-  // getFinalRandom(uint256 gameId) returns (bytes32)
-  {
-    type:    'function',
-    name:    'getFinalRandom',
-    inputs:  [{ name: 'gameId',      type: 'uint256' }],
-    outputs: [{ name: 'finalRandom', type: 'bytes32' }],
-    stateMutability: 'view',
-  },
-
-  // event GameCommitted(uint256 indexed gameId, address indexed player, bytes32 playerCommit, bytes32 dealerCommit)
-  {
-    type:      'event',
-    name:      'GameCommitted',
-    anonymous: false,
-    inputs: [
-      { name: 'gameId',       type: 'uint256', indexed: true  },
-      { name: 'player',       type: 'address', indexed: true  },
-      { name: 'playerCommit', type: 'bytes32', indexed: false },
-      { name: 'dealerCommit', type: 'bytes32', indexed: false },
-    ],
-  },
-
-  // event GameRevealed(uint256 indexed gameId, address indexed player, bytes32 finalRandom, bytes32 playerSeed, bytes32 dealerSeed)
-  {
-    type:      'event',
-    name:      'GameRevealed',
-    anonymous: false,
-    inputs: [
-      { name: 'gameId',      type: 'uint256', indexed: true  },
-      { name: 'player',      type: 'address', indexed: true  },
-      { name: 'finalRandom', type: 'bytes32', indexed: false },
-      { name: 'playerSeed',  type: 'bytes32', indexed: false },
-      { name: 'dealerSeed',  type: 'bytes32', indexed: false },
-    ],
-  },
-];
-
-// ─── FairBet ABI（鏈上下注）──────────────────────────────────────────────────
-export const FAIRBET_ABI = [
-  {
-    type: 'function',
-    name: 'placeBet',
-    inputs: [
-      { name: 'gameType',     type: 'uint8'   },
-      { name: 'betType',      type: 'uint8'   },
-      { name: 'param',        type: 'uint256' },
-      { name: 'playerCommit', type: 'bytes32' },
-      { name: 'dealerCommit', type: 'bytes32' },
-    ],
-    outputs: [{ name: 'betId', type: 'uint256' }],
-    stateMutability: 'payable',
-  },
-  {
-    type: 'function',
-    name: 'settleBet',
-    inputs: [
-      { name: 'betId',      type: 'uint256' },
-      { name: 'playerSeed', type: 'bytes32' },
-      { name: 'playerSalt', type: 'bytes32' },
-      { name: 'dealerSeed', type: 'bytes32' },
-      { name: 'dealerSalt', type: 'bytes32' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'poolBalance',
-    inputs: [],
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'getBet',
-    inputs: [{ name: 'betId', type: 'uint256' }],
-    outputs: [{
-      name: '', type: 'tuple',
-      components: [
-        { name: 'player',       type: 'address' },
-        { name: 'gameType',     type: 'uint8'   },
-        { name: 'betType',      type: 'uint8'   },
-        { name: 'param',        type: 'uint256' },
-        { name: 'amount',       type: 'uint256' },
-        { name: 'playerCommit', type: 'bytes32' },
-        { name: 'dealerCommit', type: 'bytes32' },
-        { name: 'finalRandom',  type: 'bytes32' },
-        { name: 'outcome',      type: 'uint256' },
-        { name: 'payout',       type: 'uint256' },
-        { name: 'state',        type: 'uint8'   },
-        { name: 'placedAt',     type: 'uint256' },
-        { name: 'settledAt',    type: 'uint256' },
-      ],
-    }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'betCount',
-    inputs: [],
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'event',
-    name: 'BetPlaced',
-    anonymous: false,
-    inputs: [
-      { name: 'betId',    type: 'uint256', indexed: true  },
-      { name: 'player',   type: 'address', indexed: true  },
-      { name: 'gameType', type: 'uint8',   indexed: false },
-      { name: 'betType',  type: 'uint8',   indexed: false },
-      { name: 'param',    type: 'uint256', indexed: false },
-      { name: 'amount',   type: 'uint256', indexed: false },
-    ],
-  },
-  {
-    type: 'event',
-    name: 'BetSettled',
-    anonymous: false,
-    inputs: [
-      { name: 'betId',       type: 'uint256', indexed: true  },
-      { name: 'player',      type: 'address', indexed: true  },
-      { name: 'won',         type: 'bool',    indexed: false },
-      { name: 'outcome',     type: 'uint256', indexed: false },
-      { name: 'finalRandom', type: 'bytes32', indexed: false },
-      { name: 'payout',      type: 'uint256', indexed: false },
-    ],
-  },
-];
+/** 版本登錄表：一局的完整識別 = chainId + 合約地址 + betId + 規則版本 */
+export const FAIRBET_DEPLOYMENTS = [FAIRBET_V3, FAIRBET_V2].filter((d) => d.address);

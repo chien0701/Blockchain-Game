@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ethers } from 'ethers';
 import {
   intFromHex, rollDie, mapRange, crashBps, wheelSeg, WHEEL,
-  plinkoBucket, PLINKO, revolverChamber, outcomeOf, bpsToX,
+  plinkoBucket, PLINKO, revolverChamber, outcomeOf, bpsToX, resolveBet, netResult,
 } from '../games/random';
 
 const randFr = () => ethers.hexlify(ethers.randomBytes(32));
@@ -140,5 +140,37 @@ describe('前端與合約邏輯一致性（回歸測試）', () => {
 
   it('未知 gameType 回傳 null', () => {
     expect(outcomeOf(99, randFr())).toBeNull();
+  });
+});
+
+describe('resolveBet 與淨結果定義（助教 R07）', () => {
+  const A = 1_000_000n;
+  const frFor = (pred) => { for (;;) { const fr = randFr(); if (pred(fr)) return fr; } };
+
+  it('Plinko 1.0× 退回本金為 push，0.5× 有返還但為 lose', () => {
+    const fr10 = frFor((fr) => [7, 9].includes(plinkoBucket(fr)));
+    expect(netResult(resolveBet(7, 0, 0, A, fr10).payout, A)).toBe('push');
+    const fr05 = frFor((fr) => plinkoBucket(fr) === 8);
+    const r = resolveBet(7, 0, 0, A, fr05);
+    expect(r.payout).toBe(A / 2n);
+    expect(netResult(r.payout, A)).toBe('lose');
+  });
+
+  it('Crash 撐過目標賠 目標倍，否則 0', () => {
+    const fr = frFor((f) => crashBps(f) >= 20000);
+    expect(resolveBet(4, 0, 20000, A, fr).payout).toBe(A * 2n);
+    const lose = frFor((f) => crashBps(f) < 20000);
+    expect(resolveBet(4, 0, 20000, A, lose).payout).toBe(0n);
+  });
+
+  it('左輪 n 發：賠付 6/(6−n) 倍，且 n=1..5 皆整除', () => {
+    for (let n = 1; n <= 5; n++) {
+      const fr = frFor((f) => revolverChamber(f) >= n);
+      expect(resolveBet(8, n, 0, A, fr).payout).toBe(A * 60000n / BigInt(6 - n) / 10000n);
+    }
+  });
+
+  it('未知遊戲回傳 null', () => {
+    expect(resolveBet(9, 0, 0, A, randFr())).toBeNull();
   });
 });

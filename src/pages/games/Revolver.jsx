@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useBetting } from '../../hooks/useBetting';
 import CommitRevealFlow, { BetPanel, SettlementBanner } from '../../components/CommitRevealFlow';
 import { ResultBanner, CryptoProof, ResultActions, SimulationNotice } from '../../components/GameResult';
-import { revolverChamber } from '../../games/random';
+import { revolverChamber, winnerOf } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
 import { saveGame, getPref, setPref } from '../../utils/storage';
 
@@ -26,17 +26,12 @@ function RevolverRound({ onPlayAgain }) {
     saved.current = true;
     const chamber = revolverChamber(cr.finalRandom);
     const survived = chamber >= bullets;
-    const consistent = cr.settlement ? cr.settlement.outcome === chamber : null;
+    const consistent = cr.consistent;
     setOutcome({ chamber, survived, consistent });
     saveGame({
-      gameId, gameType: 'revolver', chainGameId: cr.chainGameId,
-      playerSeed: cr.playerSeed, playerSalt: cr.playerSalt,
-      dealerSeed: cr.dealerSeed, dealerSalt: cr.dealerSalt,
-      playerCommit: cr.playerCommit, dealerCommit: cr.dealerCommit,
-      finalRandom: cr.finalRandom,
-      result: { winner: survived ? 'player' : 'dealer', reason: `${bullets} 發子彈，轉出第 ${chamber + 1} 膛` },
-      betAmount: cr.isBetting ? amount : null, payout: cr.settlement?.payoutEth ?? null,
-      commitTxHash: cr.commitTxHash, revealTxHash: cr.revealTxHash,
+      ...cr.recordFields(),
+      gameId, gameType: 'revolver',
+      result: { winner: winnerOf(cr.settlement.net), reason: `${bullets} 發子彈，轉出第 ${chamber + 1} 膛` },
       timestamp: new Date().toISOString(),
     });
   }, [cr.phase]);

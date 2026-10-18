@@ -105,16 +105,25 @@ export function BetAmountPicker({ value, onChange }) {
 
 export function SettlementBanner({ settlement, amountEth }) {
   if (!settlement) return null;
-  return settlement.won ? (
+  const { net, payoutEth } = settlement;
+  const diff = (Number(payoutEth) - Number(amountEth)).toFixed(6).replace(/\.?0+$/, '');
+  if (net === 'win') return (
     <div className="bg-emerald-950/50 border border-emerald-700 rounded-xl p-4 text-center">
-      <span className="text-emerald-300 font-bold text-lg">
-        💰 合約已賠付 {settlement.payoutEth} ETH 至你的錢包
-      </span>
-      <div className="text-xs text-emerald-500 mt-1">下注 {amountEth} ETH → 淨賺 {(Number(settlement.payoutEth) - Number(amountEth)).toFixed(4)} ETH</div>
+      <span className="text-emerald-300 font-bold text-lg">💰 合約已賠付 {payoutEth} ETH 至你的錢包</span>
+      <div className="text-xs text-emerald-500 mt-1">下注 {amountEth} ETH → 淨賺 {diff} ETH（未扣 gas）</div>
     </div>
-  ) : (
+  );
+  if (net === 'push') return (
+    <div className="bg-ink-800/60 border border-gray-700 rounded-xl p-4 text-center">
+      <span className="text-gray-200 font-bold text-lg">🤝 合約退回本金 {payoutEth} ETH</span>
+      <div className="text-xs text-gray-500 mt-1">不輸不贏（gas 另計）</div>
+    </div>
+  );
+  return (
     <div className="bg-red-950/40 border border-red-800 rounded-xl p-4 text-center">
-      <span className="text-red-300 font-bold text-lg">💸 注金 {amountEth} ETH 已進入莊家資金池</span>
+      <span className="text-red-300 font-bold text-lg">
+        {Number(payoutEth) > 0 ? `💸 合約返還 ${payoutEth} ETH，淨輸 ${diff.replace('-', '')} ETH` : `💸 注金 ${amountEth} ETH 已進入莊家資金池`}
+      </span>
     </div>
   );
 }
@@ -137,8 +146,8 @@ export function ErrorBox({ message, onDismiss }) {
 export default function CommitRevealFlow({ cr, title, revealLabel = '揭露並開始', betSlot, canCommit = true, loaderTheme = 'commit', children }) {
   const {
     phase, loading, loadMsg, loadUrl, error, dismissError,
-    playerSeed, playerCommit, dealerSeed, dealerCommit,
-    commitTxHash, chainGameId, onChain, isMock, isWrongNetwork,
+    playerSeed, playerCommit, revealBlock,
+    commitTxHash, chainGameId, isWrongNetwork,
     commit, reveal,
   } = cr;
 
@@ -159,14 +168,12 @@ export default function CommitRevealFlow({ cr, title, revealLabel = '揭露並�
         <div className="space-y-6 animate-fade-in-up">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-white">{title} · 承諾階段</h2>
-            <p className="text-gray-400 mt-1 text-sm">雙方種子承諾將被永久寫入區塊鏈，無法事後竄改</p>
+            <p className="text-gray-400 mt-1 text-sm">你的種子承諾寫入區塊鏈；開獎的另一半亂數來自下注之後才產生的區塊</p>
           </div>
 
           {cr.isBetting
-            ? <div className="bg-electric-950/50 border border-electric-700 rounded-xl px-4 py-2.5 text-sm text-electric-300">🎰 真實下注模式 — 注金將實際進出 FairBet 合約，贏了自動賠付</div>
-            : onChain
-            ? <div className="bg-emerald-950/40 border border-emerald-800 rounded-xl px-4 py-2.5 text-sm text-emerald-300">⛓️ 真實上鏈模式</div>
-            : <div className="bg-amber-950/40 border border-amber-800 rounded-xl px-4 py-2.5 text-sm text-amber-300">🎭 {isMock ? '模擬模式（無 MetaMask）' : '模擬模式（未設定合約地址）'}</div>}
+            ? <div className="bg-electric-950/50 border border-electric-700 rounded-xl px-4 py-2.5 text-sm text-electric-300">🎰 真實下注模式（FairBet v3）— 注金實際進出合約，由合約判定並自動賠付</div>
+            : <div className="bg-amber-950/40 border border-amber-800 rounded-xl px-4 py-2.5 text-sm text-amber-300">🎭 模擬模式（{cr.mockReason}）— 流程相同，但熵由本機產生、未上鏈、沒有金流</div>}
 
           {betSlot}
 
@@ -177,9 +184,11 @@ export default function CommitRevealFlow({ cr, title, revealLabel = '揭露並�
               <HashBox label="commit_P = keccak256(seed‖salt)" value={playerCommit} />
             </div>
             <div className="bg-ink-850 border border-gray-700 rounded-2xl p-5 space-y-4">
-              <div className="flex items-center gap-2"><span className="text-2xl">🏦</span><span className="font-bold text-white">莊家（系統）</span></div>
-              <HashBox label="seed_D（隱藏）" value={dealerSeed} hidden />
-              <HashBox label="commit_D = keccak256(seed‖salt)" value={dealerCommit} />
+              <div className="flex items-center gap-2"><span className="text-2xl">⛓️</span><span className="font-bold text-white">開獎熵（區塊雜湊）</span></div>
+              <HashBox label="下注區塊的下一個區塊" hidden />
+              <p className="text-xs text-gray-500 leading-relaxed">
+                下注當下這個區塊還沒產生，你、網站與合約擁有者都無法預知它的雜湊，因此無法先選好必贏的注。
+              </p>
             </div>
           </div>
 
@@ -211,26 +220,31 @@ export default function CommitRevealFlow({ cr, title, revealLabel = '揭露並�
         <div className="space-y-6 animate-fade-in-up">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-white">{title} · 揭露階段</h2>
-            <p className="text-gray-400 mt-1 text-sm">公開種子，合約驗證承諾並計算最終隨機數</p>
+            <p className="text-gray-400 mt-1 text-sm">公開種子，合約驗證承諾後以 keccak256(seed‖區塊雜湊) 開獎</p>
           </div>
 
-          {onChain && chainGameId && (
+          {cr.isBetting && chainGameId && (
             <div className="bg-ink-850 border border-gray-700 rounded-xl p-4 font-mono text-xs space-y-2">
-              <div className="text-gray-500">✅ 承諾已上鏈</div>
-              <div className="flex justify-between"><span className="text-gray-600">Commit TX</span>
-                <a href={getTxUrl(commitTxHash)} target="_blank" rel="noreferrer" className="text-electric-400">{shortenHash(commitTxHash, 8)} ↗</a></div>
-              <div className="flex justify-between"><span className="text-gray-600">鏈上 Game ID</span><span className="text-electric-400">#{chainGameId}</span></div>
+              <div className="text-gray-500">✅ 下注已上鏈，注型與注金已鎖定</div>
+              {commitTxHash && (
+                <div className="flex justify-between"><span className="text-gray-600">下注 TX</span>
+                  <a href={getTxUrl(commitTxHash)} target="_blank" rel="noreferrer" className="text-electric-400">{shortenHash(commitTxHash, 8)} ↗</a></div>
+              )}
+              <div className="flex justify-between"><span className="text-gray-600">Bet ID</span><span className="text-electric-400">#{chainGameId}</span></div>
+              {revealBlock && <div className="flex justify-between"><span className="text-gray-600">開獎區塊</span><span className="text-electric-400">#{revealBlock}</span></div>}
             </div>
           )}
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="bg-ink-850 border border-emerald-800 rounded-2xl p-5 space-y-3">
               <div className="flex items-center gap-2"><span className="text-2xl">🧑</span><span className="font-bold text-white">玩家</span></div>
-              <HashBox label="seed_P" value={playerSeed} />
+              <HashBox label="seed_P（現在公開）" value={playerSeed} />
             </div>
             <div className="bg-ink-850 border border-emerald-800 rounded-2xl p-5 space-y-3">
-              <div className="flex items-center gap-2"><span className="text-2xl">🏦</span><span className="font-bold text-white">莊家（現在公開）</span></div>
-              <HashBox label="seed_D" value={dealerSeed} />
+              <div className="flex items-center gap-2"><span className="text-2xl">⛓️</span><span className="font-bold text-white">開獎熵</span></div>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                {cr.isBetting ? `結算時由合約讀取區塊 #${revealBlock ?? '—'} 的雜湊` : '模擬：開獎時由本機產生'}
+              </p>
             </div>
           </div>
 

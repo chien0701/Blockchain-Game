@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useBetting } from '../../hooks/useBetting';
 import CommitRevealFlow, { BetPanel, SettlementBanner } from '../../components/CommitRevealFlow';
 import { ResultBanner, CryptoProof, ResultActions, SimulationNotice } from '../../components/GameResult';
-import { mapRange } from '../../games/random';
+import { mapRange, winnerOf } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
 import { saveGame, getPref, setPref } from '../../utils/storage';
 
@@ -32,19 +32,13 @@ function SlotsRound({ onPlayAgain }) {
     const tier = allSame ? 'JACKPOT 三連線（8倍）！' : twoSame ? '兩連線（2倍）' : '未中獎';
 
     const localOutcome = reels[0] * 100 + reels[1] * 10 + reels[2];
-    const consistent = cr.settlement ? cr.settlement.outcome === localOutcome : null;
+    const consistent = cr.consistent;
     setOutcome({ symbols, win, allSame, tier, consistent });
 
     saveGame({
-      gameId, gameType: 'slots', chainGameId: cr.chainGameId,
-      playerSeed: cr.playerSeed, playerSalt: cr.playerSalt,
-      dealerSeed: cr.dealerSeed, dealerSalt: cr.dealerSalt,
-      playerCommit: cr.playerCommit, dealerCommit: cr.dealerCommit,
-      finalRandom: cr.finalRandom,
-      result: { winner: win ? 'player' : 'dealer', reason: `拉霸：${symbols.join(' ')}` },
-      betAmount: cr.isBetting ? amount : null,
-      payout: cr.settlement?.payoutEth ?? null,
-      commitTxHash: cr.commitTxHash, revealTxHash: cr.revealTxHash,
+      ...cr.recordFields(),
+      gameId, gameType: 'slots',
+      result: { winner: winnerOf(cr.settlement.net), reason: `拉霸：${symbols.join(' ')}` },
       timestamp: new Date().toISOString(),
     });
   }, [cr.phase]);
@@ -90,7 +84,7 @@ function SlotsRound({ onPlayAgain }) {
             </div>
             {outcome.consistent !== null && (
               <div className={`text-center text-xs mt-2 ${outcome.consistent ? 'text-emerald-400' : 'text-red-400'}`}>
-                {outcome.consistent ? '✅ 合約判定結果與本地重算完全一致' : '🚨 合約結果與本地重算不一致！'}
+                {outcome.consistent ? '✅ 合約的開獎結果與賠付，和本地重算完全一致' : '🚨 合約結果或賠付與本地重算不一致！'}
               </div>
             )}
           </div>

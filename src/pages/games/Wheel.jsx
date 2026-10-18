@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useBetting } from '../../hooks/useBetting';
 import CommitRevealFlow, { BetPanel, SettlementBanner } from '../../components/CommitRevealFlow';
 import { ResultBanner, CryptoProof, ResultActions, SimulationNotice } from '../../components/GameResult';
-import { wheelSeg, WHEEL, bpsToX } from '../../games/random';
+import { wheelSeg, WHEEL, bpsToX, winnerOf } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
 import { saveGame, getPref, setPref } from '../../utils/storage';
 
@@ -26,17 +26,12 @@ function WheelRound({ onPlayAgain }) {
     const seg = wheelSeg(cr.finalRandom);
     const mult = WHEEL[seg] / 10000;
     const win = WHEEL[seg] > 0;
-    const consistent = cr.settlement ? cr.settlement.outcome === seg : null;
+    const consistent = cr.consistent;
     setOutcome({ seg, mult, win, consistent });
     saveGame({
-      gameId, gameType: 'wheel', chainGameId: cr.chainGameId,
-      playerSeed: cr.playerSeed, playerSalt: cr.playerSalt,
-      dealerSeed: cr.dealerSeed, dealerSalt: cr.dealerSalt,
-      playerCommit: cr.playerCommit, dealerCommit: cr.dealerCommit,
-      finalRandom: cr.finalRandom,
-      result: { winner: win ? 'player' : 'dealer', reason: `轉盤 ${mult}×` },
-      betAmount: cr.isBetting ? amount : null, payout: cr.settlement?.payoutEth ?? null,
-      commitTxHash: cr.commitTxHash, revealTxHash: cr.revealTxHash,
+      ...cr.recordFields(),
+      gameId, gameType: 'wheel',
+      result: { winner: winnerOf(cr.settlement.net), reason: `轉盤 ${mult}×` },
       timestamp: new Date().toISOString(),
     });
   }, [cr.phase]);

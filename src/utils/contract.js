@@ -1,12 +1,7 @@
 /**
- * contract.js — 封裝所有與 GameCommitReveal 合約的互動
- *
- * 使用方式：
- *   import { commitGame, revealGame, getGameData } from './contract';
- *
- * 所有函式都有 IS_ON_CHAIN 保護：
- *   - 若未設定 VITE_CONTRACT_ADDRESS，自動拋出明確錯誤
- *   - Game.jsx 的呼叫者決定是否用 mock fallback
+ * contract.js — 封裝所有鏈上讀寫
+ *   GameCommitReveal：21 點、猜數字的公平性展示（無金流）
+ *   FairBet v3：下注、結算、讀取；v2 僅供查驗舊局
  */
 
 import { ethers } from 'ethers';
@@ -15,11 +10,11 @@ import {
   CONTRACT_ABI,
   FAIRBET_ADDRESS,
   FAIRBET_ABI,
+  FAIRBET_V2,
   IS_ON_CHAIN,
-  IS_BETTING,
-  SUPPORTED_CHAIN_ID,
   CURRENT_CHAIN,
 } from '../config/contractConfig';
+import { BET_STATE_V3, BET_STATE_V2 } from '../config/abi';
 
 // ─── 內部工具 ─────────────────────────────────────────────────────────────────
 
@@ -27,8 +22,8 @@ import {
  * 唯讀 RPC provider — 不需 MetaMask、不需連錢包
  * 讓任何第三方都能直接從鏈上讀資料驗證（permissionless）
  */
-export function getReadOnlyProvider() {
-  return new ethers.JsonRpcProvider(CURRENT_CHAIN.rpcUrl);
+export function getReadOnlyProvider(rpcUrl) {
+  return new ethers.JsonRpcProvider(rpcUrl || CURRENT_CHAIN.rpcUrl);
 }
 
 /** 取得合約實例（唯讀，不需要 signer） */
@@ -166,116 +161,179 @@ export function getContractUrl() {
   return `${CURRENT_CHAIN.explorerUrl}/address/${CONTRACT_ADDRESS}`;
 }
 
-// ─── FairBet 鏈上下注 ─────────────────────────────────────────────────────────
+// ─── FairBet v3 鏈上下注 ──────────────────────────────────────────────────────
 
-function getFairBet(signerOrProvider) {
-  if (!IS_BETTING) throw new Error('FairBet 地址未設定，請在 .env 設定 VITE_FAIRBET_ADDRESS');
-  return new ethers.Contract(FAIRBET_ADDRESS, FAIRBET_ABI, signerOrProvider);
+function getFairBet(signerOrProvider, address = FAIRBET_ADDRESS) {
+  if (!address) throw new Error('FairBet 地址未設定，請在 .env 設定 VITE_FAIRBET_ADDRESS');
+  return new ethers.Contract(address, FAIRBET_ABI, signerOrProvider);
 }
 
-/**
- * 下注 + 提交承諾（一筆 payable 交易）
- * @param {object} p { gameType, betType, betValue, amountEth, playerCommit, dealerCommit }
- * @returns {{ betId: string, txHash: string }}
- */
+export const BetState = BET_STATE_V3;
+
+/** 下注：只送玩家承諾。回傳 revealBlock（下注區塊 + 1） */
 export async function placeBetOnChain(signer, p) {
   const fb = getFairBet(signer);
   const tx = await fb.placeBet(
-    p.gameType, p.betType, BigInt(p.param ?? 0),
-    p.playerCommit, p.dealerCommit,
+    p.gameType, p.betType, BigInt(p.param ?? 0), p.playerCommit,
     { value: ethers.parseEther(p.amountEth) },
   );
   const receipt = await tx.wait(1);
   const args = parseEvent(fb, receipt, 'BetPlaced');
   if (!args) throw new Error('找不到 BetPlaced event');
-  return { betId: args.betId.toString(), txHash: receipt.hash };
+  return {
+    betId:       args.betId.toString(),
+    revealBlock: Number(args.revealBlock),
+    amountWei:   args.amount.toString(),
+    txHash:      receipt.hash,
+  };
 }
 
-/**
- * 揭露種子 → 合約判定輸贏並自動賠付
- * @returns {{ finalRandom, won, outcome, payoutEth, txHash }}
- */
-export async function settleBetOnChain(signer, betId, playerSeed, playerSalt, dealerSeed, dealerSalt) {
+/** 等到鏈上最新區塊 ≥ target（之後送出的交易必定落在 target 之後） */
+export async function waitForBlock(provider, target, { timeoutMs = 180_000, intervalMs = 2_000, onTick } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const n = await provider.getBlockNumber();
+    onTick?.(n);
+    if (n >= target) return n;
+    if (Date.now() > deadline) throw new Error(`等待區塊 #${target} 逾時（目前 #${n}）`);
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+}
+
+/** 揭露種子 → 合約以 blockhash(revealBlock) 為熵判定並自動賠付 */
+export async function settleBetOnChain(signer, betId, playerSeed, playerSalt) {
   const fb = getFairBet(signer);
-  const tx = await fb.settleBet(BigInt(betId), playerSeed, playerSalt, dealerSeed, dealerSalt);
+  const tx = await fb.settleBet(BigInt(betId), playerSeed, playerSalt);
   const receipt = await tx.wait(1);
   const args = parseEvent(fb, receipt, 'BetSettled');
   if (!args) throw new Error('找不到 BetSettled event');
   return {
-    finalRandom: args.finalRandom,
     won:         args.won,
     outcome:     Number(args.outcome),
-    payoutWei:   args.payout,
+    entropy:     args.entropy,
+    finalRandom: args.finalRandom,
+    payoutWei:   args.payout.toString(),
     payoutEth:   ethers.formatEther(args.payout),
     txHash:      receipt.hash,
   };
 }
 
-/** 查詢莊家資金池餘額（ETH 字串） */
-export async function getPoolBalance(provider) {
-  const fb = getFairBet(provider);
-  return ethers.formatEther(await fb.poolBalance());
+/** 以承諾反查 betId（重整後恢復未完成的局）；查無回傳 null */
+export async function findBetIdByCommit(provider, commit, address = FAIRBET_ADDRESS) {
+  const id = await getFairBet(provider, address).betIdByCommit(commit);
+  return id === 0n ? null : id.toString();
 }
 
-/** FairBet 的 BetState enum */
-export const BetState = { None: 0, Placed: 1, Settled: 2 };
+export async function getPoolBalance(provider) {
+  return ethers.formatEther(await getFairBet(provider).poolBalance());
+}
+
+/** 區塊雜湊（供驗證器獨立比對合約記錄的 entropy） */
+export async function getBlockHash(provider, blockNumber) {
+  const blk = await provider.getBlock(blockNumber);
+  if (!blk?.hash) throw new Error(`RPC 未回傳區塊 #${blockNumber}`);
+  return blk.hash;
+}
+
+/** 讀取 v3 下注局：種子、熵、結果全部在合約 storage，不需查歷史日誌 */
+export async function getBetV3(provider, betId, address = FAIRBET_ADDRESS) {
+  const b = await getFairBet(provider, address).getBet(BigInt(betId));
+  return {
+    version:      3,
+    address,
+    betId:        String(betId),
+    player:       b.player,
+    gameType:     Number(b.gameType),
+    betType:      Number(b.betType),
+    state:        Number(b.state),
+    revealBlock:  Number(b.revealBlock),
+    param:        b.param.toString(),
+    amountWei:    b.amount.toString(),
+    amountEth:    ethers.formatEther(b.amount),
+    playerCommit: b.playerCommit,
+    playerSeed:   b.playerSeed,
+    playerSalt:   b.playerSalt,
+    entropy:      b.entropy,
+    finalRandom:  b.finalRandom,
+    outcome:      Number(b.outcome),
+    payoutWei:    b.payout.toString(),
+    payoutEth:    ethers.formatEther(b.payout),
+  };
+}
+
+// ─── FairBet v2（已停用，僅供查驗舊局）────────────────────────────────────────
+
+async function findBlockByTimestamp(provider, ts) {
+  let lo = 0, hi = await provider.getBlockNumber();
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const blk = await provider.getBlock(mid);
+    if (blk.timestamp < ts) lo = mid + 1; else hi = mid;
+  }
+  return lo;
+}
+
+function classifyRpcError(err) {
+  const m = (err?.shortMessage || err?.message || '').toLowerCase();
+  if (m.includes('range') || m.includes('limit') || m.includes('too many') || m.includes('exceed')) return 'rpc-limit';
+  if (m.includes('timeout') || m.includes('network') || m.includes('fetch')) return 'rpc-unreachable';
+  return 'rpc-error';
+}
 
 /**
- * 查詢一筆下注的鏈上資料（供第三方驗證）
- *
- * 注意：FairBet 的 Bet struct 不儲存種子與 salt，它們只存在於 settleBet
- * 的交易 calldata 中。因此本函式會嘗試從結算交易反解出種子：
- *   1. getBet() 取得承諾、finalRandom、outcome、payout
- *   2. 以 BetSettled 事件定位結算交易
- *   3. 解碼該交易 calldata 取回 seed / salt
- * 若步驟 2-3 因 RPC 限制失敗，仍回傳步驟 1 的資料（降級為部分驗證）。
+ * v2 的種子只在 settleBet 的 calldata。以 settledAt 時間戳二分搜尋出結算區塊，
+ * 只查詢該區塊附近的日誌，避免對 RPC 發出全鏈範圍查詢。
+ * seedsStatus：'found' | 'not-found' | 'rpc-limit' | 'rpc-unreachable' | 'rpc-error'
  */
-export async function getBetData(provider, betId) {
-  const fb = getFairBet(provider);
-  const b  = await fb.getBet(BigInt(betId));
-
+export async function getBetV2(provider, betId) {
+  const fb = new ethers.Contract(FAIRBET_V2.address, FAIRBET_V2.abi, provider);
+  const b = await fb.getBet(BigInt(betId));
   const data = {
+    version:      2,
+    address:      FAIRBET_V2.address,
+    betId:        String(betId),
     player:       b.player,
     gameType:     Number(b.gameType),
     betType:      Number(b.betType),
     param:        b.param.toString(),
+    amountWei:    b.amount.toString(),
     amountEth:    ethers.formatEther(b.amount),
     playerCommit: b.playerCommit,
     dealerCommit: b.dealerCommit,
     finalRandom:  b.finalRandom,
     outcome:      Number(b.outcome),
+    payoutWei:    b.payout.toString(),
     payoutEth:    ethers.formatEther(b.payout),
     state:        Number(b.state),
     placedAt:     Number(b.placedAt),
     settledAt:    Number(b.settledAt),
     seeds:        null,
+    seedsStatus:  null,
     settleTxHash: null,
   };
-
-  if (data.state !== BetState.Settled) return data;
+  if (data.state !== BET_STATE_V2.Settled || data.finalRandom === ethers.ZeroHash) return data;
 
   try {
-    const logs = await fb.queryFilter(fb.filters.BetSettled(BigInt(betId)));
-    if (logs.length > 0) {
-      const txHash = logs[logs.length - 1].transactionHash;
-      const tx = await provider.getTransaction(txHash);
-      const decoded = fb.interface.decodeFunctionData('settleBet', tx.data);
-      data.settleTxHash = txHash;
-      data.seeds = {
-        playerSeed: decoded[1],
-        playerSalt: decoded[2],
-        dealerSeed: decoded[3],
-        dealerSalt: decoded[4],
-      };
+    const center = await findBlockByTimestamp(provider, data.settledAt);
+    let logs = [];
+    for (const radius of [2, 50]) {
+      logs = await fb.queryFilter(fb.filters.BetSettled(BigInt(betId)), center - radius, center + radius);
+      if (logs.length) break;
     }
-  } catch {
-    // RPC 可能限制歷史日誌查詢範圍；降級為部分驗證
+    if (!logs.length) { data.seedsStatus = 'not-found'; return data; }
+    const txHash = logs[logs.length - 1].transactionHash;
+    const tx = await provider.getTransaction(txHash);
+    const decoded = fb.interface.decodeFunctionData('settleBet', tx.data);
+    data.settleTxHash = txHash;
+    data.seeds = { playerSeed: decoded[1], playerSalt: decoded[2], dealerSeed: decoded[3], dealerSalt: decoded[4] };
+    data.seedsStatus = 'found';
+  } catch (err) {
+    data.seedsStatus = classifyRpcError(err);
   }
-
   return data;
 }
 
-export function getFairBetUrl() {
-  if (!IS_BETTING || !CURRENT_CHAIN.explorerUrl) return '';
-  return `${CURRENT_CHAIN.explorerUrl}/address/${FAIRBET_ADDRESS}`;
+export function getFairBetUrl(address = FAIRBET_ADDRESS) {
+  if (!address || !CURRENT_CHAIN.explorerUrl) return '';
+  return `${CURRENT_CHAIN.explorerUrl}/address/${address}`;
 }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useBetting } from '../../hooks/useBetting';
 import CommitRevealFlow, { BetPanel, SettlementBanner } from '../../components/CommitRevealFlow';
 import { ResultBanner, CryptoProof, ResultActions, SimulationNotice } from '../../components/GameResult';
-import { rollDie, intFromHex } from '../../games/random';
+import { rollDie, intFromHex, winnerOf } from '../../games/random';
 import { newGameId } from '../../utils/crypto';
 import { saveGame, getPref, setPref } from '../../utils/storage';
 
@@ -49,19 +49,13 @@ function DiceRound({ onPlayAgain }) {
       win = bet === (localOutcome === 0 ? 'heads' : 'tails');
       faceText = localOutcome === 0 ? '正面 🙂' : '反面 ⛓️';
     }
-    const consistent = cr.settlement ? cr.settlement.outcome === localOutcome : null;
+    const consistent = cr.consistent;
     setOutcome({ win, faceText, localOutcome, consistent });
 
     saveGame({
-      gameId, gameType: 'dice', chainGameId: cr.chainGameId,
-      playerSeed: cr.playerSeed, playerSalt: cr.playerSalt,
-      dealerSeed: cr.dealerSeed, dealerSalt: cr.dealerSalt,
-      playerCommit: cr.playerCommit, dealerCommit: cr.dealerCommit,
-      finalRandom: cr.finalRandom,
-      result: { winner: win ? 'player' : 'dealer', reason: `${mode === 'dice' ? '骰子' : '硬幣'}：${faceText}` },
-      betAmount: cr.isBetting ? amount : null,
-      payout: cr.settlement?.payoutEth ?? null,
-      commitTxHash: cr.commitTxHash, revealTxHash: cr.revealTxHash,
+      ...cr.recordFields(),
+      gameId, gameType: 'dice',
+      result: { winner: winnerOf(cr.settlement.net), reason: `${mode === 'dice' ? '骰子' : '硬幣'}：${faceText}` },
       timestamp: new Date().toISOString(),
     });
   }, [cr.phase]);
@@ -116,7 +110,7 @@ function DiceRound({ onPlayAgain }) {
             <div className="text-gray-400 text-sm">你押：{bets.find(b => b.id === bet)?.label}</div>
             {outcome.consistent !== null && (
               <div className={`text-xs mt-3 ${outcome.consistent ? 'text-emerald-400' : 'text-red-400'}`}>
-                {outcome.consistent ? '✅ 合約判定結果與本地重算完全一致' : '🚨 合約結果與本地重算不一致！'}
+                {outcome.consistent ? '✅ 合約的開獎結果與賠付，和本地重算完全一致' : '🚨 合約結果或賠付與本地重算不一致！'}
               </div>
             )}
           </div>

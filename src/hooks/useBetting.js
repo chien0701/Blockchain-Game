@@ -1,57 +1,63 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ethers } from 'ethers';
 import { useWallet } from '../context/WalletContext';
+import { generateSeed, generateSalt, commitHash, combineSeeds, mockTxHash } from '../utils/crypto';
 import {
-  generateSeed, generateSalt, commitHash, combineSeeds, mockTxHash,
-} from '../utils/crypto';
-import {
-  commitGame as contractCommit,
-  revealGame as contractReveal,
-  placeBetOnChain, settleBetOnChain, getPoolBalance, getTxUrl,
+  placeBetOnChain, settleBetOnChain, waitForBlock, findBetIdByCommit, getBetV3, getPoolBalance,
 } from '../utils/contract';
-import { IS_ON_CHAIN, IS_BETTING } from '../config/contractConfig';
+import { savePendingBet, updatePendingBet, removePendingBet } from '../utils/storage';
+import { resolveBet, netResult, GAME_TYPE_NAMES } from '../games/random';
+import { IS_BETTING, FAIRBET_ADDRESS, SUPPORTED_CHAIN_ID } from '../config/contractConfig';
 
-function parseError(err) {
-  const msg = err?.message || '';
-  if (err?.code === 4001 || msg.includes('user rejected')) return '你取消了交易，請重試。';
+export function parseError(err) {
+  const msg = err?.shortMessage || err?.message || '';
+  if (err?.code === 4001 || err?.code === 'ACTION_REJECTED' || msg.includes('user rejected')) return '你取消了交易。';
   if (msg.includes('insufficient funds')) return '錢包餘額不足（注金 + Gas）。';
   if (msg.includes('PoolInsufficient')) return '莊家資金池不足以支付此注的最大賠付，請降低注金。';
+  if (msg.includes('CommitReused')) return '這組承諾已用過，請重新開一局。';
+  if (msg.includes('RevealWindowClosed')) return '已超過 256 個區塊的揭露期限，這一局只能宣告過期。';
+  if (msg.includes('TooEarly')) return '開獎區塊尚未產生，請稍候再試。';
+  if (msg.includes('逾時')) return msg;
   if (msg.includes('could not detect') || msg.includes('network')) return '網路連線異常，請確認已連上正確網路。';
-  if (msg.includes('VITE_')) return '合約地址尚未設定。';
   return `操作失敗：${msg.slice(0, 120)}`;
 }
 
+const isRejected = (err) => err?.code === 4001 || err?.code === 'ACTION_REJECTED';
+
 /**
- * 下注版 Commit-Reveal。依環境自動選擇模式：
- *   bet   — FairBet 合約：真實下注、合約判定、自動賠付
- *   plain — GameCommitReveal：僅上鏈公平驗證（無金流）
- *   mock  — 純前端模擬
+ * 下注流程（FairBet v3）。
+ *   bet  — 真實下注：玩家只承諾自己的種子；熵來自下注後下一個區塊的雜湊，由合約讀取
+ *   mock — 模擬：同一套協議，熵在承諾之後才由本機隨機產生
+ *
+ * 下注成功後，種子與局號寫入 localStorage（pending），重整或結算失敗都能續做同一局；
+ * 已下注的局重試時只會結算，不會再下一注。
  */
 export function useBetting() {
-  const { getSigner, getProvider, address, isMock, isWrongNetwork } = useWallet();
+  const { getSigner, getProvider, address, isConnected, isMock, isWrongNetwork } = useWallet();
 
   const [playerSeed] = useState(() => generateSeed());
-  const [dealerSeed] = useState(() => generateSeed());
   const [playerSalt] = useState(() => generateSalt());
-  const [dealerSalt] = useState(() => generateSalt());
   const playerCommit = commitHash(playerSeed, playerSalt);
-  const dealerCommit = commitHash(dealerSeed, dealerSalt);
 
   const [phase,   setPhase]   = useState('commit');
   const [loading, setLoading] = useState(false);
   const [loadMsg, setLoadMsg] = useState('');
-  const [loadUrl, setLoadUrl] = useState('');
   const [error,   setError]   = useState('');
 
   const [chainGameId,  setChainGameId]  = useState('');
+  const [revealBlock,  setRevealBlock]  = useState(null);
   const [commitTxHash, setCommitTxHash] = useState('');
   const [revealTxHash, setRevealTxHash] = useState('');
+  const [entropy,      setEntropy]      = useState('');
   const [finalRandom,  setFinalRandom]  = useState('');
   const [settlement,   setSettlement]   = useState(null);
+  const [consistent,   setConsistent]   = useState(null);
   const [betParams,    setBetParams]    = useState(null);
 
-  const mode = isMock ? 'mock' : IS_BETTING ? 'bet' : IS_ON_CHAIN ? 'plain' : 'mock';
-  const onChain   = mode !== 'mock';
+  const placed = useRef(null);
+
+  const mode = IS_BETTING && isConnected && !isMock ? 'bet' : 'mock';
+  const mockReason = !IS_BETTING ? '未設定 FairBet v3 地址' : isMock ? '未偵測到 MetaMask' : '未連接錢包';
   const isBetting = mode === 'bet';
 
   const [walletEth, setWalletEth] = useState(null);
@@ -61,137 +67,126 @@ export function useBetting() {
     if (mode !== 'bet' || !address) return;
     try {
       const provider = getProvider();
-      const [wbal, pool] = await Promise.all([
-        provider.getBalance(address),
-        getPoolBalance(provider),
-      ]);
+      const [wbal, pool] = await Promise.all([provider.getBalance(address), getPoolBalance(provider)]);
       setWalletEth(Number(ethers.formatEther(wbal)));
       setPoolEth(Number(pool));
-    } catch { /* 靜默 */ }
+    } catch { /* 餘額僅供顯示 */ }
   }, [mode, address, getProvider]);
 
   useEffect(() => { refreshBalances(); }, [refreshBalances]);
 
-  /** bet 模式需傳 { gameType, betType, betValue, amountEth } */
-  const commit = async (params) => {
-    setError(''); setLoading(true);
-    try {
-      if (mode === 'bet') {
-        setBetParams(params);
-        setLoadMsg(`📡 下注 ${params.amountEth} ETH，等待 MetaMask 簽署…`); setLoadUrl('');
-        const signer = await getSigner();
-        const { betId, txHash } = await placeBetOnChain(signer, {
-          ...params, playerCommit, dealerCommit,
+  const amountWeiOf = (p) => ethers.parseEther(String(p.amountEth || '0')).toString();
+
+  const place = async (params) => {
+    if (placed.current) return placed.current;
+    setBetParams(params);
+
+    if (mode === 'mock') {
+      setLoadMsg('🎭 模擬下注（未上鏈）…');
+      await new Promise((r) => setTimeout(r, 400));
+      placed.current = { betId: '', revealBlock: null, txHash: mockTxHash(), amountWei: amountWeiOf(params), params };
+    } else {
+      setLoadMsg(`📡 下注 ${params.amountEth} ETH，等待錢包簽署…`);
+      const signer = await getSigner();
+      savePendingBet({
+        commit: playerCommit, seed: playerSeed, salt: playerSalt,
+        chainId: SUPPORTED_CHAIN_ID, contract: FAIRBET_ADDRESS,
+        gameType: params.gameType, gameTypeName: GAME_TYPE_NAMES[params.gameType],
+        betType: params.betType, param: String(params.param ?? 0), amountEth: String(params.amountEth),
+        status: 'signing', createdAt: new Date().toISOString(),
+      });
+      try {
+        const r = await placeBetOnChain(signer, { ...params, playerCommit });
+        placed.current = { ...r, params };
+      } catch (err) {
+        if (isRejected(err)) { removePendingBet(playerCommit); throw err; }
+        const provider = getProvider();
+        const betId = await findBetIdByCommit(provider, playerCommit).catch(() => null);
+        if (!betId) throw err;
+        const b = await getBetV3(provider, betId);
+        placed.current = { betId, revealBlock: b.revealBlock, txHash: '', amountWei: b.amountWei, params };
+      }
+      updatePendingBet(playerCommit, {
+        status: 'placed', betId: placed.current.betId,
+        revealBlock: placed.current.revealBlock, placeTxHash: placed.current.txHash,
+      });
+    }
+    setChainGameId(placed.current.betId);
+    setRevealBlock(placed.current.revealBlock);
+    setCommitTxHash(placed.current.txHash);
+    return placed.current;
+  };
+
+  const settle = async () => {
+    const p = placed.current;
+    let s;
+    if (mode === 'mock') {
+      setLoadMsg('🎭 產生模擬區塊熵並開獎…');
+      await new Promise((r) => setTimeout(r, 400));
+      const ent = ethers.hexlify(ethers.randomBytes(32));
+      const fr = combineSeeds(playerSeed, ent);
+      const r = resolveBet(p.params.gameType, p.params.betType, p.params.param ?? 0, p.amountWei, fr);
+      s = { entropy: ent, finalRandom: fr, outcome: r.outcome, payoutWei: r.payout.toString(),
+            payoutEth: ethers.formatEther(r.payout), txHash: mockTxHash() };
+      setConsistent(null);
+    } else {
+      const provider = getProvider();
+      if (p.revealBlock) {
+        await waitForBlock(provider, p.revealBlock, {
+          onTick: (n) => setLoadMsg(n >= p.revealBlock
+            ? '⛓️ 開獎區塊已產生，等待錢包簽署結算…'
+            : `⏳ 等待開獎區塊 #${p.revealBlock} 產生（目前 #${n}）…`),
         });
-        setChainGameId(betId); setCommitTxHash(txHash);
-      } else if (mode === 'plain') {
-        setLoadMsg('📡 等待 MetaMask 簽署交易…'); setLoadUrl('');
-        const signer = await getSigner();
-        const { chainGameId: cid, txHash } = await contractCommit(signer, playerCommit, dealerCommit);
-        setChainGameId(cid); setCommitTxHash(txHash);
-      } else {
-        setLoadMsg('🎭 模擬寫入區塊鏈…');
-        await new Promise(r => setTimeout(r, 500));
-        setCommitTxHash(mockTxHash());
       }
-      setPhase('reveal');
-    } catch (err) {
-      setError(parseError(err));
-    } finally { setLoading(false); setLoadUrl(''); }
+      const signer = await getSigner();
+      s = await settleBetOnChain(signer, p.betId, playerSeed, playerSalt);
+      removePendingBet(playerCommit);
+      const r = resolveBet(p.params.gameType, p.params.betType, p.params.param ?? 0, p.amountWei, s.finalRandom);
+      setConsistent(r.outcome === s.outcome && r.payout.toString() === s.payoutWei
+        && combineSeeds(playerSeed, s.entropy) === s.finalRandom);
+    }
+    setRevealTxHash(s.txHash);
+    setEntropy(s.entropy);
+    setFinalRandom(s.finalRandom);
+    setSettlement({
+      outcome: s.outcome, payoutWei: s.payoutWei, payoutEth: s.payoutEth,
+      amountWei: p.amountWei, net: netResult(s.payoutWei, p.amountWei),
+    });
+    setPhase('ready');
+    refreshBalances();
+    return s.finalRandom;
   };
 
-  const reveal = async () => {
+  const run = async (steps) => {
     setError(''); setLoading(true);
-    try {
-      let combined;
-      if (mode === 'bet') {
-        setLoadMsg('📡 揭露種子，合約結算中…'); setLoadUrl('');
-        const signer = await getSigner();
-        const r = await settleBetOnChain(
-          signer, chainGameId, playerSeed, playerSalt, dealerSeed, dealerSalt,
-        );
-        setRevealTxHash(r.txHash);
-        setSettlement({ won: r.won, outcome: r.outcome, payoutEth: r.payoutEth });
-        combined = r.finalRandom;
-      } else if (mode === 'plain') {
-        setLoadMsg('📡 等待 MetaMask 簽署揭露交易…'); setLoadUrl('');
-        const signer = await getSigner();
-        const { finalRandom: fr, txHash } = await contractReveal(
-          signer, chainGameId, playerSeed, playerSalt, dealerSeed, dealerSalt,
-        );
-        setRevealTxHash(txHash); combined = fr;
-      } else {
-        setLoadMsg('🎭 驗證雜湊並計算最終隨機數…');
-        await new Promise(r => setTimeout(r, 500));
-        combined = combineSeeds(playerSeed, dealerSeed);
-        setRevealTxHash(mockTxHash());
-      }
-      setFinalRandom(combined);
-      setPhase('ready');
-      refreshBalances();
-      return combined;
-    } catch (err) {
-      setError(parseError(err));
-      return null;
-    } finally { setLoading(false); setLoadUrl(''); }
+    try { return await steps(); }
+    catch (err) { setError(parseError(err)); return null; }
+    finally { setLoading(false); }
   };
 
-  /** ⚡ 快速模式：commit + reveal 一鍵連發，中間不停頓 */
-  const quickPlay = async (params) => {
-    setError(''); setLoading(true);
-    try {
-      let combined;
-      if (mode === 'bet') {
-        setBetParams(params);
-        setLoadMsg(`📡 1/2 下注 ${params.amountEth} ETH 上鏈中…`);
-        const signer = await getSigner();
-        const r1 = await placeBetOnChain(signer, { ...params, playerCommit, dealerCommit });
-        setChainGameId(r1.betId); setCommitTxHash(r1.txHash);
+  const commit = (params) => run(async () => { await place(params); setPhase('reveal'); });
+  const reveal = () => run(settle);
+  const quickPlay = (params) => run(async () => { await place(params); return settle(); });
 
-        setLoadMsg('🎲 2/2 揭露種子，合約結算中…');
-        const r2 = await settleBetOnChain(
-          signer, r1.betId, playerSeed, playerSalt, dealerSeed, dealerSalt,
-        );
-        setRevealTxHash(r2.txHash);
-        setSettlement({ won: r2.won, outcome: r2.outcome, payoutEth: r2.payoutEth });
-        combined = r2.finalRandom;
-      } else if (mode === 'plain') {
-        setLoadMsg('📡 1/2 承諾上鏈中…');
-        const signer = await getSigner();
-        const r1 = await contractCommit(signer, playerCommit, dealerCommit);
-        setChainGameId(r1.chainGameId); setCommitTxHash(r1.txHash);
-
-        setLoadMsg('🎲 2/2 揭露並計算隨機數…');
-        const r2 = await contractReveal(
-          signer, r1.chainGameId, playerSeed, playerSalt, dealerSeed, dealerSalt,
-        );
-        setRevealTxHash(r2.txHash);
-        combined = r2.finalRandom;
-      } else {
-        setLoadMsg('🎭 快速開獎中…');
-        await new Promise(r => setTimeout(r, 500));
-        setCommitTxHash(mockTxHash()); setRevealTxHash(mockTxHash());
-        combined = combineSeeds(playerSeed, dealerSeed);
-      }
-      setFinalRandom(combined);
-      setPhase('ready');
-      refreshBalances();
-      return combined;
-    } catch (err) {
-      setError(parseError(err));
-      return null;
-    } finally { setLoading(false); setLoadUrl(''); }
-  };
+  /** 寫入本地紀錄所需的協議欄位（各遊戲頁共用） */
+  const recordFields = () => ({
+    protocol: 'fb3', rng: 2, onChain: isBetting,
+    chainId: isBetting ? SUPPORTED_CHAIN_ID : null, contract: isBetting ? FAIRBET_ADDRESS : null,
+    chainGameId, gameTypeId: betParams?.gameType, betType: betParams?.betType, param: String(betParams?.param ?? 0),
+    amountWei: settlement?.amountWei, payoutWei: settlement?.payoutWei, outcome: settlement?.outcome,
+    playerSeed, playerSalt, playerCommit, revealBlock, entropy, finalRandom,
+    betAmount: isBetting ? betParams?.amountEth : null, payout: isBetting ? settlement?.payoutEth : null,
+    commitTxHash, revealTxHash,
+  });
 
   return {
     playerSeed, playerSalt, playerCommit,
-    dealerSeed, dealerSalt, dealerCommit,
-    phase, loading, loadMsg, loadUrl, error,
+    phase, loading, loadMsg, loadUrl: '', error,
     dismissError: () => setError(''),
-    chainGameId, commitTxHash, revealTxHash, finalRandom,
-    settlement, betParams,
+    chainGameId, revealBlock, commitTxHash, revealTxHash, entropy, finalRandom,
+    settlement, consistent, betParams,
     walletEth, poolEth, refreshBalances,
-    onChain, isBetting, isMock, isWrongNetwork,
-    commit, reveal, quickPlay,
+    onChain: isBetting, isBetting, isMock, mockReason, isWrongNetwork,
+    commit, reveal, quickPlay, recordFields,
   };
 }

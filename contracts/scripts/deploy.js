@@ -1,10 +1,22 @@
-const { ethers, network } = require("hardhat");
+const { ethers, network, config } = require("hardhat");
 const fs   = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
+
+const git = (cmd) => {
+  try { return execSync(`git ${cmd}`, { encoding: "utf8" }).trim(); } catch { return null; }
+};
+const LOCAL = ["localhost", "hardhat"];
 
 async function main() {
   console.log(`\n🚀 部署到網路：${network.name}`);
   console.log("─".repeat(50));
+
+  const dirty = Boolean(git("status --porcelain"));
+  if (dirty && !LOCAL.includes(network.name)) {
+    console.error("❌ 工作目錄有未提交的修改。公開網路部署必須先 commit，登錄表記錄的 gitCommit 才等於實際部署的原始碼。");
+    process.exit(1);
+  }
 
   const [deployer] = await ethers.getSigners();
   console.log(`📬 部署者地址：${deployer.address}`);
@@ -25,13 +37,14 @@ async function main() {
   const crAddress = await cr.getAddress();
   console.log(`✅ GameCommitReveal：${crAddress}`);
 
-  // ── 2. FairBet（鏈上下注：骰子 / 硬幣 / 輪盤 / 拉霸）────────
+  // ── 2. FairBet v3（9 種下注遊戲；熵 = 下注後下一個區塊的雜湊）──
   console.log("\n📦 部署 FairBet...");
   const FB = await ethers.getContractFactory("FairBet");
   const fb = await FB.deploy();
   await fb.waitForDeployment();
   const fbAddress = await fb.getAddress();
-  console.log(`✅ FairBet：${fbAddress}`);
+  const fbReceipt = await fb.deploymentTransaction().wait();
+  console.log(`✅ FairBet v${await fb.RULES_VERSION()}：${fbAddress}（區塊 #${fbReceipt.blockNumber}）`);
 
   // ── 3. 注入莊家資金池 ────────────────────────────────────────
   const defaultFund = network.name === "localhost" ? "5" : "0.03";
@@ -51,21 +64,32 @@ async function main() {
   }
   console.log("✅ 合約驗證通過（gameCount=0, betCount=0）");
 
-  // ── 5. 寫入 deployment.json ─────────────────────────────────
-  const deploymentInfo = {
-    network:            network.name,
-    chainId:            (await ethers.provider.getNetwork()).chainId.toString(),
-    commitRevealAddress: crAddress,
-    fairBetAddress:      fbAddress,
-    poolFund:            ethers.formatEther(fundAmount),
-    deployer:            deployer.address,
-    deployedAt:          new Date().toISOString(),
+  // ── 5. 寫入版本登錄表（受版控；地址為公開資訊）──────────────────
+  const crReceipt = await cr.deploymentTransaction().wait();
+  const chainId = (await ethers.provider.getNetwork()).chainId.toString();
+  const sol = config.solidity.compilers[0];
+  const entry = {
+    deployedAt:  new Date().toISOString(),
+    chainId,
+    gitCommit:   git("rev-parse HEAD"),
+    gitDirty:    dirty,
+    compiler:    { version: sol.version, optimizer: sol.settings.optimizer, evmVersion: sol.settings.evmVersion || "paris" },
+    deployer:    deployer.address,
+    poolFund:    ethers.formatEther(fundAmount),
+    contracts: {
+      GameCommitReveal: { address: crAddress, block: crReceipt.blockNumber, tx: crReceipt.hash },
+      FairBet:          { address: fbAddress, block: fbReceipt.blockNumber, tx: fbReceipt.hash,
+                          rulesVersion: Number(await fb.RULES_VERSION()), protocol: "future-blockhash" },
+    },
   };
-  fs.writeFileSync(
-    path.join(__dirname, "..", "deployment.json"),
-    JSON.stringify(deploymentInfo, null, 2)
-  );
-  console.log("\n📝 部署資訊已儲存至 contracts/deployment.json");
+  const dir = path.join(__dirname, "..", "deployments");
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${network.name}.json`);
+  const history = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : [];
+  history.unshift(entry);
+  fs.writeFileSync(file, JSON.stringify(history, null, 2) + "\n");
+  console.log(`\n📝 已寫入版本登錄表 contracts/deployments/${network.name}.json`);
+  const deploymentInfo = { chainId };
 
   // ── 6. 前端設定提示 ──────────────────────────────────────────
   console.log("\n" + "─".repeat(50));

@@ -1,0 +1,15 @@
+[
+  {
+    "deployedAt": "2026-07-08T05:40:48.315Z",
+    "chainId": "11155111",
+    "gitCommit": null,
+    "compiler": { "version": "0.8.24", "optimizer": { "enabled": true, "runs": 200 }, "evmVersion": "paris" },
+    "deployer": "0xF1a6AC55133A582E691F5123E389e6fc52904C76",
+    "poolFund": "0.05",
+    "note": "v2：已停用。玩家可同時提交雙方承諾，下注前即可算出結果（助教 T03）。部署後 owner 改為 immutable，現行原始碼與鏈上 bytecode 不一致，未完成 Etherscan 驗證。gitCommit 與部署區塊當時未記錄。",
+    "contracts": {
+      "GameCommitReveal": { "address": "0xe9C2a98699FEd3653774783160e65556f7B6aDB3", "block": null, "tx": null },
+      "FairBet":          { "address": "0x25A753d62A0030680C92473681e4BD52BA42A7e8", "block": null, "tx": null, "rulesVersion": 2, "protocol": "dual-seed" }
+    }
+  }
+]

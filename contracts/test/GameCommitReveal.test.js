@@ -185,7 +185,7 @@ describe("GameCommitReveal", function () {
     });
   });
 
-  describe("完整 E2E 流程", function () {
+  describe("合約端完整流程（commit → reveal；非網站 E2E）", function () {
     it("commit → reveal → 前後端 finalRandom 完全一致", async function () {
       const pSeed = generateSeed(), pSalt = generateSalt();
       const dSeed = generateSeed(), dSalt = generateSalt();

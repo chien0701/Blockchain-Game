@@ -32,3 +32,4 @@ contracts/deployments/hardhat.json
 !docs/專題本/圖/*.png
 docs/專題本/*_備份_*.docx
 .claude/launch.json
+docs/experiments/localhost-*.json

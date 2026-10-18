@@ -15,12 +15,15 @@ function parseError(err) {
   if (err?.code === 4001 || msg.includes('user rejected')) return '你取消了交易，請重試。';
   if (msg.includes('insufficient funds')) return '錢包餘額不足以支付 Gas 費用。';
   if (msg.includes('could not detect') || msg.includes('network')) return '網路連線異常，請確認已連上正確網路。';
+  if (msg.includes('InvalidPlayerHash')) return '玩家種子雜湊驗證失敗（前端與合約計算不一致）。';
+  if (msg.includes('InvalidDealerHash')) return '莊家種子雜湊驗證失敗（前端與合約計算不一致）。';
+  if (msg.includes('AlreadyRevealed')) return '這局遊戲已經揭露過了。';
   if (msg.includes('VITE_CONTRACT_ADDRESS')) return '尚未設定合約地址。';
   return `操作失敗：${msg.slice(0, 120)}`;
 }
 
 export function useCommitReveal() {
-  const { getSigner, isMock, isWrongNetwork } = useWallet();
+  const { getSigner, isConnected, isMock, isWrongNetwork } = useWallet();
 
   const [playerSeed] = useState(() => generateSeed());
   const [dealerSeed] = useState(() => generateSeed());
@@ -40,7 +43,8 @@ export function useCommitReveal() {
   const [revealTxHash, setRevealTxHash] = useState('');
   const [finalRandom,  setFinalRandom]  = useState('');
 
-  const onChain = IS_ON_CHAIN && !isMock;
+  const onChain = IS_ON_CHAIN && isConnected && !isMock;
+  const mockReason = !IS_ON_CHAIN ? '未設定合約地址' : isMock ? '未偵測到 MetaMask' : '未連接錢包';
 
   const commit = async () => {
     setError(''); setLoading(true);
@@ -95,7 +99,7 @@ export function useCommitReveal() {
     phase, loading, loadMsg, loadUrl, error,
     dismissError: () => setError(''),
     chainGameId, commitTxHash, revealTxHash, finalRandom,
-    onChain, isMock, isWrongNetwork,
+    onChain, isMock, mockReason, isWrongNetwork,
     commit, reveal,
   };
 }

@@ -5,7 +5,7 @@ import { commitHash, combineSeeds, shortenHash } from '../utils/crypto';
 import { calcScore } from '../utils/gameLogic';
 import { loadGame, recentGames } from '../utils/storage';
 import {
-  getReadOnlyProvider, getGameData, getContractUrl, getFairBetUrl, getBetV3, getBetV2, getBlockHash, GameState,
+  getReadOnlyProvider, getGameData, getContractUrl, getFairBetUrl, getBetV3, getBetV2, getBlockHash, getFinality, GameState,
 } from '../utils/contract';
 import { verifyBetV3, verifyBetV2, verifyLocalRecord, check, verdictOf } from '../utils/verify';
 import { describeOutcome, GAME_TYPE_NAMES } from '../games/random';
@@ -342,7 +342,8 @@ function BetVerifier({ initialId, initialAddress }) {
       if (dep.version === 3) {
         const b = await getBetV3(provider, id, dep.address);
         const blockHash = b.state === 2 ? await getBlockHash(provider, b.revealBlock).catch(() => null) : null;
-        setData(b); setResult(verifyBetV3(b, blockHash));
+        const finality = b.state === 2 ? await getFinality(provider, b.revealBlock) : null;
+        setData({ ...b, finality }); setResult(verifyBetV3(b, blockHash));
       } else {
         const b = await getBetV2(provider, id);
         setData(b); setResult(verifyBetV2(b));
@@ -419,6 +420,9 @@ function BetVerifier({ initialId, initialAddress }) {
             { label: '玩家承諾',   value: shortenHash(data.playerCommit, 10) },
             data.version === 3 ? { label: '開獎區塊', value: `#${data.revealBlock}` } : { label: '莊家承諾', value: shortenHash(data.dealerCommit, 10) },
             data.version === 3 && data.entropy ? { label: '熵（區塊雜湊）', value: shortenHash(data.entropy, 10) } : null,
+            data.finality ? { label: '熵區塊最終性', value: data.finality.finalized
+              ? '已最終確定（不會再因重組改變）'
+              : `尚未最終確定（目前最終確定至 #${data.finality.finalizedBlock}，約 13 分鐘後再驗一次）` } : null,
             { label: '最終隨機數', value: shortenHash(data.finalRandom, 10) },
           ]} />
           <Checks checks={result.checks} />

@@ -8,6 +8,17 @@ const git = (cmd) => {
 };
 const LOCAL = ["localhost", "hardhat"];
 
+/** 公開 RPC 由多個節點負載平衡，剛部署的合約可能尚未同步到被查詢的節點 */
+async function read(fn, tries = 10) {
+  for (let i = 1; ; i++) {
+    try { return await fn(); }
+    catch (err) {
+      if (i >= tries) throw err;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
+}
+
 async function main() {
   console.log(`\n🚀 部署到網路：${network.name}`);
   console.log("─".repeat(50));
@@ -44,7 +55,7 @@ async function main() {
   await fb.waitForDeployment();
   const fbAddress = await fb.getAddress();
   const fbReceipt = await fb.deploymentTransaction().wait();
-  console.log(`✅ FairBet v${await fb.RULES_VERSION()}：${fbAddress}（區塊 #${fbReceipt.blockNumber}）`);
+  console.log(`✅ FairBet v${await read(() => fb.RULES_VERSION())}：${fbAddress}（區塊 #${fbReceipt.blockNumber}）`);
 
   // ── 3. 注入莊家資金池 ────────────────────────────────────────
   const defaultFund = network.name === "localhost" ? "5" : "0.03";
@@ -53,11 +64,11 @@ async function main() {
   console.log(`\n💵 注入資金池 ${ethers.formatEther(fundAmount)} ETH...`);
   const fundTx = await deployer.sendTransaction({ to: fbAddress, value: fundAmount });
   await fundTx.wait();
-  console.log(`✅ 資金池餘額：${ethers.formatEther(await fb.poolBalance())} ETH`);
+  console.log(`✅ 資金池餘額：${ethers.formatEther(await read(() => fb.poolBalance()))} ETH`);
 
   // ── 4. 部署後驗證 ────────────────────────────────────────────
-  const gameCount = await cr.gameCount();
-  const betCount  = await fb.betCount();
+  const gameCount = await read(() => cr.gameCount());
+  const betCount  = await read(() => fb.betCount());
   if (gameCount !== 0n || betCount !== 0n) {
     console.error("❌ 合約狀態異常");
     process.exit(1);
@@ -79,7 +90,7 @@ async function main() {
     contracts: {
       GameCommitReveal: { address: crAddress, block: crReceipt.blockNumber, tx: crReceipt.hash },
       FairBet:          { address: fbAddress, block: fbReceipt.blockNumber, tx: fbReceipt.hash,
-                          rulesVersion: Number(await fb.RULES_VERSION()), protocol: "future-blockhash" },
+                          rulesVersion: Number(await read(() => fb.RULES_VERSION())), protocol: "future-blockhash" },
     },
   };
   const dir = path.join(__dirname, "..", "deployments");

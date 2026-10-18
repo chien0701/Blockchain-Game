@@ -1,15 +1,70 @@
 [
   {
+    "deployedAt": "2026-10-18T06:10:37.348Z",
+    "chainId": "11155111",
+    "gitCommit": "097e0bbab8bd8d2e7c1b62e78224f3e7dffe30dd",
+    "gitDirty": false,
+    "compiler": {
+      "version": "0.8.24",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "evmVersion": "paris"
+    },
+    "deployer": "0xF1a6AC55133A582E691F5123E389e6fc52904C76",
+    "poolFund": "0.03",
+    "note": "部署腳本在部署 FairBet 後讀取 RULES_VERSION 時遇到公開 RPC 節點延遲而中斷（回傳 0x），兩份合約均已上鏈；之後確認 RULES_VERSION=3、狀態為初始值，另以交易注資資金池並補寫本紀錄。",
+    "contracts": {
+      "GameCommitReveal": {
+        "address": "0x8d890ce6F08751EBe3691a592B108484f73269D1",
+        "block": 11939196,
+        "tx": "0x760f4303e843743f00023ba0388f854c718a161a21ee3951bc2ce79075a9e95f",
+        "active": false,
+        "note": "程式碼與 0xe9C2…aDB3（2026-07-08 部署）逐位元組相同；前端沿用舊地址以保留其上 2 局紀錄，本合約未啟用"
+      },
+      "FairBet": {
+        "address": "0xb798377B9bE67114f9302dfB6e9cC8A7Bf2c402c",
+        "block": 11939197,
+        "tx": "0xc719e0edbd95aca3e648fc3e9bdf28a6961a401bbb984890722d042ee30fb8ca",
+        "rulesVersion": 3,
+        "protocol": "future-blockhash",
+        "fundTx": "0xb74d6e4a59c7d6f9f4051f42d689b924e1247a80a6416020a95d55c47acc5791",
+        "active": true
+      }
+    },
+    "bytecodeCheck": "2026-10-18：兩份合約鏈上程式碼（遮蔽 immutable owner 後）與 commit 097e0bb 編譯產物逐位元組相同，含 metadata 原始碼雜湊"
+  },
+  {
     "deployedAt": "2026-07-08T05:40:48.315Z",
     "chainId": "11155111",
     "gitCommit": null,
-    "compiler": { "version": "0.8.24", "optimizer": { "enabled": true, "runs": 200 }, "evmVersion": "paris" },
+    "compiler": {
+      "version": "0.8.24",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "evmVersion": "paris"
+    },
     "deployer": "0xF1a6AC55133A582E691F5123E389e6fc52904C76",
     "poolFund": "0.05",
     "note": "v2：已停用。玩家可同時提交雙方承諾，下注前即可算出結果（助教 T03）。部署後 owner 改為 immutable，現行原始碼與鏈上 bytecode 不一致，未完成 Etherscan 驗證。gitCommit 與部署區塊當時未記錄。",
     "contracts": {
-      "GameCommitReveal": { "address": "0xe9C2a98699FEd3653774783160e65556f7B6aDB3", "block": null, "tx": null },
-      "FairBet":          { "address": "0x25A753d62A0030680C92473681e4BD52BA42A7e8", "block": null, "tx": null, "rulesVersion": 2, "protocol": "dual-seed" }
+      "GameCommitReveal": {
+        "address": "0xe9C2a98699FEd3653774783160e65556f7B6aDB3",
+        "block": null,
+        "tx": null,
+        "active": true
+      },
+      "FairBet": {
+        "address": "0x25A753d62A0030680C92473681e4BD52BA42A7e8",
+        "block": null,
+        "tx": null,
+        "rulesVersion": 2,
+        "protocol": "dual-seed",
+        "active": false
+      }
     }
   }
 ]

@@ -1,6 +1,7 @@
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { shortenHash } from '../utils/crypto';
-import { getTxUrl } from '../utils/contract';
+import { getTxUrl, getFinality, getReadOnlyProvider } from '../utils/contract';
 
 export function ResultBanner({ win, draw, title, sub }) {
   return (
@@ -26,7 +27,29 @@ export function SimulationNotice() {
   );
 }
 
-export function CryptoProof({ finalRandom, chainGameId, commitTxHash, revealTxHash }) {
+export function FinalityBadge({ blockNumber }) {
+  const [state, setState] = useState(null);
+  useEffect(() => {
+    if (!blockNumber) return;
+    let alive = true, timer;
+    const provider = getReadOnlyProvider();
+    const tick = async () => {
+      const f = await getFinality(provider, blockNumber);
+      if (!alive) return;
+      setState(f);
+      if (!f?.finalized) timer = setTimeout(tick, 15000);
+    };
+    tick();
+    return () => { alive = false; clearTimeout(timer); };
+  }, [blockNumber]);
+  if (!blockNumber) return null;
+  if (!state) return <div className="text-xs text-gray-500">⏳ 區塊 #{blockNumber} 已確認，正在查詢最終性…</div>;
+  return state.finalized
+    ? <div className="text-xs text-emerald-400">✅ 區塊 #{blockNumber} 已最終確定，結果不會再因重組改變</div>
+    : <div className="text-xs text-amber-300">⏳ 區塊 #{blockNumber} 已確認，尚未最終確定（目前最終確定至 #{state.finalizedBlock}，約需 13 分鐘）；在此之前若發生區塊重組，結算交易可能需要重新上鏈</div>;
+}
+
+export function CryptoProof({ finalRandom, chainGameId, commitTxHash, revealTxHash, settleBlock }) {
   const Row = ({ label, hash, link }) => (
     <div className="flex items-center justify-between">
       <span className="text-gray-600">{label}</span>
@@ -52,6 +75,7 @@ export function CryptoProof({ finalRandom, chainGameId, commitTxHash, revealTxHa
         {commitTxHash && <Row label="Commit TX" hash={commitTxHash} link={getTxUrl(commitTxHash)} />}
         {revealTxHash && <Row label="Reveal TX" hash={revealTxHash} link={getTxUrl(revealTxHash)} />}
       </div>
+      {settleBlock && <FinalityBadge blockNumber={settleBlock} />}
     </div>
   );
 }

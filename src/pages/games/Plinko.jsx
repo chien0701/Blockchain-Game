@@ -40,9 +40,9 @@ function PlinkoRound({ onPlayAgain }) {
   const betSlot = (
     <div className="bg-ink-850 border border-electric-900/40 rounded-2xl p-4 space-y-3">
       <div className="text-sm text-gray-400">🔻 彈珠掉落 16 排釘子，落到哪個槽就是幾倍（中間低、兩邊高）</div>
-      <div className="flex justify-center gap-0.5 flex-wrap">
+      <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${PLINKO.length}, minmax(0, 1fr))` }}>
         {PLINKO.map((m, i) => (
-          <div key={i} className={`w-8 h-8 rounded ${bucketColor(m)} flex items-center justify-center text-[8px] font-bold text-white`}>
+          <div key={i} className={`h-8 rounded ${bucketColor(m)} flex items-center justify-center text-[8px] font-bold text-white`}>
             {bpsToX(m)}
           </div>
         ))}
@@ -69,9 +69,9 @@ function PlinkoRound({ onPlayAgain }) {
             sub={`彈珠落在第 ${outcome.bucket + 1} 槽 · ${outcome.win ? '淨贏' : outcome.draw ? '退回本金' : '淨輸'}`} />
           {cr.isBetting && <SettlementBanner settlement={cr.settlement} amountEth={amount} />}
           <div className="bg-gradient-to-b from-electric-950 to-ink-900 border border-electric-800 rounded-2xl p-8">
-            <div className="flex justify-center gap-0.5 flex-wrap">
+            <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${PLINKO.length}, minmax(0, 1fr))` }}>
               {PLINKO.map((m, i) => (
-                <div key={i} className={`w-8 h-10 rounded flex items-center justify-center text-[8px] font-bold text-white
+                <div key={i} className={`h-10 rounded flex items-center justify-center text-[8px] font-bold text-white
                   ${i === outcome.bucket ? 'ring-2 ring-white scale-110 ' + bucketColor(m) : bucketColor(m) + ' opacity-50'}`}>
                   {i === outcome.bucket ? '🔴' : bpsToX(m)}
                 </div>
@@ -85,7 +85,7 @@ function PlinkoRound({ onPlayAgain }) {
           </div>
           {!cr.onChain && <SimulationNotice />}
           <CryptoProof finalRandom={cr.finalRandom} chainGameId={cr.chainGameId}
-            commitTxHash={cr.commitTxHash} revealTxHash={cr.revealTxHash} />
+            commitTxHash={cr.commitTxHash} revealTxHash={cr.revealTxHash} settleBlock={cr.settleBlock} />
           <ResultActions gameId={gameId} onPlayAgain={onPlayAgain} />
         </div>
       )}

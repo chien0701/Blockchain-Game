@@ -49,6 +49,7 @@ export function useBetting() {
   const [commitTxHash, setCommitTxHash] = useState('');
   const [revealTxHash, setRevealTxHash] = useState('');
   const [entropy,      setEntropy]      = useState('');
+  const [settleBlock,  setSettleBlock]  = useState(null);
   const [finalRandom,  setFinalRandom]  = useState('');
   const [settlement,   setSettlement]   = useState(null);
   const [consistent,   setConsistent]   = useState(null);
@@ -146,6 +147,7 @@ export function useBetting() {
         && combineSeeds(playerSeed, s.entropy) === s.finalRandom);
     }
     setRevealTxHash(s.txHash);
+    setSettleBlock(s.blockNumber ?? null);
     setEntropy(s.entropy);
     setFinalRandom(s.finalRandom);
     setSettlement({
@@ -176,14 +178,14 @@ export function useBetting() {
     amountWei: settlement?.amountWei, payoutWei: settlement?.payoutWei, outcome: settlement?.outcome,
     playerSeed, playerSalt, playerCommit, revealBlock, entropy, finalRandom,
     betAmount: isBetting ? betParams?.amountEth : null, payout: isBetting ? settlement?.payoutEth : null,
-    commitTxHash, revealTxHash,
+    commitTxHash, revealTxHash, settleBlock,
   });
 
   return {
     playerSeed, playerSalt, playerCommit,
     phase, loading, loadMsg, loadUrl: '', error,
     dismissError: () => setError(''),
-    chainGameId, revealBlock, commitTxHash, revealTxHash, entropy, finalRandom,
+    chainGameId, revealBlock, settleBlock, commitTxHash, revealTxHash, entropy, finalRandom,
     settlement, consistent, betParams,
     walletEth, poolEth, refreshBalances,
     onChain: isBetting, isBetting, isMock, mockReason, isWrongNetwork,

@@ -116,7 +116,7 @@ function DiceRound({ onPlayAgain }) {
           </div>
           {!cr.onChain && <SimulationNotice />}
           <CryptoProof finalRandom={cr.finalRandom} chainGameId={cr.chainGameId}
-            commitTxHash={cr.commitTxHash} revealTxHash={cr.revealTxHash} />
+            commitTxHash={cr.commitTxHash} revealTxHash={cr.revealTxHash} settleBlock={cr.settleBlock} />
           <ResultActions gameId={gameId} onPlayAgain={onPlayAgain} />
         </div>
       )}

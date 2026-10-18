@@ -215,7 +215,22 @@ export async function settleBetOnChain(signer, betId, playerSeed, playerSalt) {
     payoutWei:   args.payout.toString(),
     payoutEth:   ethers.formatEther(args.payout),
     txHash:      receipt.hash,
+    blockNumber: receipt.blockNumber,
   };
+}
+
+/**
+ * 區塊的最終性：PoS 下約 2 個 epoch（約 13 分鐘）後才最終確定，之前可能因重組被替換。
+ * 回傳 { finalized, finalizedBlock }；節點不支援 finalized 標籤時回傳 null。
+ */
+export async function getFinality(provider, blockNumber) {
+  try {
+    const f = await provider.getBlock('finalized');
+    if (!f) return null;
+    return { finalized: f.number >= blockNumber, finalizedBlock: f.number };
+  } catch {
+    return null;
+  }
 }
 
 /** 以承諾反查 betId（重整後恢復未完成的局）；查無回傳 null */

@@ -40,10 +40,9 @@ jobs:
         run: npx vite build
         env:
           # 合約地址為公開資訊，不需使用 Secret
-          # ⚠️ FairBet v3 部署後必須把 VITE_FAIRBET_ADDRESS 改成 v3 地址；
-          #    仍指向 v2 時前端會停用下注（v2 有已知協議缺陷，見 docs/TA_FEEDBACK_RESPONSE.md）
+          # ⚠️ 重新部署合約後必須同步更新；歷次部署見 contracts/deployments/sepolia.json
           VITE_CONTRACT_ADDRESS: "0xe9C2a98699FEd3653774783160e65556f7B6aDB3"
-          VITE_FAIRBET_ADDRESS: "0x25A753d62A0030680C92473681e4BD52BA42A7e8"
+          VITE_FAIRBET_ADDRESS: "0xb798377B9bE67114f9302dfB6e9cC8A7Bf2c402c"
           VITE_CHAIN_ID: "11155111"
 
       - name: 部署到 GitHub Pages

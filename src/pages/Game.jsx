@@ -2,21 +2,14 @@ import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import PlayingCard from '../components/PlayingCard';
 import StepBar     from '../components/StepBar';
-import { useWallet } from '../context/WalletContext';
-import {
-  generateSeed, generateSalt, commitHash, verifyCommit,
-  combineSeeds, shortenHash, mockTxHash,
-} from '../utils/crypto';
+import { useCommitReveal } from '../hooks/useCommitReveal';
+import { verifyCommit, shortenHash } from '../utils/crypto';
 import {
   createDeck, calcScore, determineWinner, RNG_VERSION,
 } from '../utils/gameLogic';
 import { saveGame } from '../utils/storage';
-import {
-  commitGame  as contractCommit,
-  revealGame  as contractReveal,
-  getTxUrl,
-} from '../utils/contract';
-import { IS_ON_CHAIN, CURRENT_CHAIN } from '../config/contractConfig';
+import { getTxUrl } from '../utils/contract';
+import { CURRENT_CHAIN } from '../config/contractConfig';
 
 /* ── 共用 UI ─────────────────────────────────────────────────────────────── */
 
@@ -53,7 +46,7 @@ function Loader({ text, txUrl }) {
       {txUrl && (
         <a href={txUrl} target="_blank" rel="noreferrer"
            className="text-xs text-electric-400 underline hover:text-electric-300">
-          在 Arbiscan 查看交易 ↗
+          在區塊瀏覽器查看交易 ↗
         </a>
       )}
     </div>
@@ -93,7 +86,7 @@ function TxRow({ label, txHash, txUrl }) {
 /* ── Phase 元件（定義在模組頂層，避免每次 render 重新掛載）─────────────────── */
 
 function CommitPhase({ playerSeed, playerCommit, dealerSeed, dealerCommit,
-                       isOnChain, isMock, isWrongNetwork, onCommit }) {
+                       isOnChain, mockReason, isWrongNetwork, onCommit }) {
   return (
     <div className="space-y-6 animate-fade-in-up">
       <div className="text-center">
@@ -104,7 +97,7 @@ function CommitPhase({ playerSeed, playerCommit, dealerSeed, dealerCommit,
       </div>
 
       {/* 模式提示 */}
-      {isOnChain && !isMock ? (
+      {isOnChain ? (
         <div className="flex items-center gap-2 bg-emerald-950/40 border border-emerald-800
                         rounded-xl px-4 py-2.5 text-sm text-emerald-300">
           <span>⛓️</span>
@@ -114,7 +107,7 @@ function CommitPhase({ playerSeed, playerCommit, dealerSeed, dealerCommit,
         <div className="flex items-center gap-2 bg-amber-950/40 border border-amber-800
                         rounded-xl px-4 py-2.5 text-sm text-amber-300">
           <span>🎭</span>
-          <span>{isMock ? '模擬模式（無 MetaMask）— 模擬區塊鏈操作' : '模擬模式（未設定合約地址）— 在 .env 填入 VITE_CONTRACT_ADDRESS 可啟用真實上鏈'}</span>
+          <span>模擬模式（{mockReason}）— 流程相同，但不送出交易</span>
         </div>
       )}
 
@@ -159,7 +152,7 @@ function CommitPhase({ playerSeed, playerCommit, dealerSeed, dealerCommit,
 }
 
 function RevealPhase({ playerSeed, playerSalt, playerCommit, dealerSeed, dealerSalt, dealerCommit,
-                       commitTxHash, chainGameId, isOnChain, isMock, onReveal }) {
+                       commitTxHash, chainGameId, isOnChain, onReveal }) {
   const p_ok = verifyCommit(playerSeed, playerSalt, playerCommit);
   const d_ok = verifyCommit(dealerSeed, dealerSalt, dealerCommit);
   const commitTxUrl = getTxUrl(commitTxHash);
@@ -174,7 +167,7 @@ function RevealPhase({ playerSeed, playerSalt, playerCommit, dealerSeed, dealerS
       </div>
 
       {/* Commit 交易資訊 */}
-      {isOnChain && !isMock && chainGameId && (
+      {isOnChain && chainGameId && (
         <div className="bg-ink-850 border border-gray-700 rounded-xl p-4
                         font-mono text-xs space-y-2">
           <div className="text-gray-500 mb-1">✅ 承諾已上鏈</div>
@@ -235,7 +228,7 @@ function RevealPhase({ playerSeed, playerSalt, playerCommit, dealerSeed, dealerS
                    rounded-2xl py-4 text-lg transition-all hover:scale-[1.02]
                    shadow-lg shadow-emerald-950"
       >
-        🎴 {isOnChain && !isMock ? '揭露種子並上鏈發牌' : '發牌並開始遊戲'}
+        🎴 {isOnChain ? '揭露種子並上鏈發牌' : '發牌並開始遊戲'}
       </button>
     </div>
   );
@@ -321,7 +314,7 @@ function PlayPhase({ playerHand, dealerHand, onHit, onStand }) {
 
 function ResultPhase({ playerHand, dealerHand, result, finalRandom, gameId,
                        chainGameId, commitTxHash, revealTxHash,
-                       isOnChain, isMock, onPlayAgain }) {
+                       isOnChain, onPlayAgain }) {
   const ps          = calcScore(playerHand);
   const ds          = calcScore(dealerHand);
   const isPlayerWin = result?.winner === 'player';
@@ -392,7 +385,7 @@ function ResultPhase({ playerHand, dealerHand, result, finalRandom, gameId,
             <span className="text-gray-600">前端 Game ID</span>
             <span className="text-gray-400 text-right max-w-[180px] truncate">{gameId}</span>
           </div>
-          {isOnChain && !isMock && chainGameId && (
+          {isOnChain && chainGameId && (
             <div className="flex items-center justify-between">
               <span className="text-gray-600">鏈上 Game ID</span>
               <span className="text-emerald-400">#{chainGameId}</span>
@@ -438,158 +431,40 @@ function ResultPhase({ playerHand, dealerHand, result, finalRandom, gameId,
 
 /* ── 錯誤訊息轉換（MetaMask 錯誤碼 → 中文）──────────────────────────────────── */
 
-function parseError(err) {
-  const msg = err?.message || '';
-  if (err?.code === 4001 || msg.includes('user rejected'))
-    return '你取消了交易，請重試。';
-  if (msg.includes('insufficient funds'))
-    return '錢包餘額不足以支付 Gas 費用，請先領取測試幣。';
-  if (msg.includes('network') || msg.includes('could not detect'))
-    return `網路連線異常，請確認 MetaMask 已連上 ${CURRENT_CHAIN.name}。`;
-  if (msg.includes('InvalidPlayerHash'))
-    return '玩家種子 Hash 驗證失敗（前端與合約計算不一致）。';
-  if (msg.includes('InvalidDealerHash'))
-    return '莊家種子 Hash 驗證失敗（前端與合約計算不一致）。';
-  if (msg.includes('AlreadyRevealed'))
-    return '這局遊戲已經揭露過了。';
-  if (msg.includes('VITE_CONTRACT_ADDRESS'))
-    return '尚未設定合約地址，請在 .env 填入 VITE_CONTRACT_ADDRESS。';
-  return `交易失敗：${msg.slice(0, 120)}`;
-}
-
 /* ── 主元件 ──────────────────────────────────────────────────────────────── */
 
 export default function Game() {
   const { id: roomId } = useParams();
   const navigate       = useNavigate();
-  const { getSigner, isMock, isWrongNetwork } = useWallet();
+  const cr = useCommitReveal();
 
-  // 種子與 salt（惰性初始化，永不重新生成）
-  const [playerSeed] = useState(() => generateSeed());
-  const [dealerSeed] = useState(() => generateSeed());
-  const [playerSalt] = useState(() => generateSalt());
-  const [dealerSalt] = useState(() => generateSalt());
-  const playerCommit = commitHash(playerSeed, playerSalt);
-  const dealerCommit = commitHash(dealerSeed, dealerSalt);
+  const [gameId]     = useState(() => roomId || `game_${Date.now()}`);
+  const [deck,       setDeck]       = useState([]);
+  const [playerHand, setPlayerHand] = useState([]);
+  const [dealerHand, setDealerHand] = useState([]);
+  const [result,     setResult]     = useState(null);
 
-  // 遊戲流程狀態
-  const [phase,   setPhase]   = useState('commit');
-  const [loading, setLoading] = useState(false);
-  const [loadMsg, setLoadMsg] = useState('');
-  const [loadUrl, setLoadUrl] = useState('');   // 顯示在 Loader 的 TX 連結
-  const [error,   setError]   = useState('');
+  const phase = cr.phase !== 'ready' ? cr.phase : result ? 'result' : playerHand.length ? 'play' : 'reveal';
 
-  // 識別碼
-  const [gameId]      = useState(() => roomId || `game_${Date.now()}`);
-  const [chainGameId, setChainGameId] = useState('');    // 鏈上 uint256 ID
-
-  // 交易雜湊
-  const [commitTxHash, setCommitTxHash] = useState('');
-  const [revealTxHash, setRevealTxHash] = useState('');
-
-  // 遊戲資料
-  const [finalRandom, setFinalRandom] = useState('');
-  const [deck,        setDeck]        = useState([]);
-  const [playerHand,  setPlayerHand]  = useState([]);
-  const [dealerHand,  setDealerHand]  = useState([]);
-  const [result,      setResult]      = useState(null);
-
-  /* ── Commit ──────────────────────────────────────────────────────────────── */
-  const handleCommit = async () => {
-    setError('');
-    setLoading(true);
-
-    try {
-      if (IS_ON_CHAIN && !isMock) {
-        // ── 真實上鏈 ──────────────────────────────────────────────────────────
-        setLoadMsg('📡 等待 MetaMask 簽署交易…');
-        setLoadUrl('');
-
-        const signer = await getSigner();
-        const { chainGameId: cid, txHash } = await contractCommit(
-          signer, playerCommit, dealerCommit
-        );
-
-        setLoadMsg('⏳ 等待區塊確認…');
-        setLoadUrl(getTxUrl(txHash));
-
-        setChainGameId(cid);
-        setCommitTxHash(txHash);
-      } else {
-        // ── 模擬模式 ──────────────────────────────────────────────────────────
-        setLoadMsg('🎭 模擬寫入區塊鏈…');
-        await new Promise(r => setTimeout(r, 1400));
-        setCommitTxHash(mockTxHash());
-      }
-
-      setPhase('reveal');
-    } catch (err) {
-      setError(parseError(err));
-    } finally {
-      setLoading(false);
-      setLoadUrl('');
-    }
-  };
-
-  /* ── Reveal ──────────────────────────────────────────────────────────────── */
   const handleReveal = async () => {
-    setError('');
-    setLoading(true);
-
-    try {
-      let combined;
-
-      if (IS_ON_CHAIN && !isMock) {
-        // ── 真實上鏈 ──────────────────────────────────────────────────────────
-        setLoadMsg('📡 等待 MetaMask 簽署揭露交易…');
-        setLoadUrl('');
-
-        const signer = await getSigner();
-        const { finalRandom: fr, txHash } = await contractReveal(
-          signer, chainGameId, playerSeed, playerSalt, dealerSeed, dealerSalt
-        );
-
-        setLoadMsg('⏳ 等待區塊確認…');
-        setLoadUrl(getTxUrl(txHash));
-
-        setRevealTxHash(txHash);
-        combined = fr;   // 直接使用合約回傳的 finalRandom
-      } else {
-        // ── 模擬模式 ──────────────────────────────────────────────────────────
-        setLoadMsg('🎭 驗證雜湊值並計算最終隨機數…');
-        await new Promise(r => setTimeout(r, 1400));
-        combined = combineSeeds(playerSeed, dealerSeed);
-        setRevealTxHash(mockTxHash());
-      }
-
-      setFinalRandom(combined);
-
-      // 發牌（前端用 finalRandom 確定性洗牌）
-      const fullDeck = createDeck(combined);
-      setPlayerHand([fullDeck[0], fullDeck[2]]);
-      setDealerHand([fullDeck[1], fullDeck[3]]);
-      setDeck(fullDeck.slice(4));
-      setPhase('play');
-    } catch (err) {
-      setError(parseError(err));
-    } finally {
-      setLoading(false);
-      setLoadUrl('');
-    }
+    const combined = await cr.reveal();
+    if (!combined) return;
+    const fullDeck = createDeck(combined);
+    setPlayerHand([fullDeck[0], fullDeck[2]]);
+    setDealerHand([fullDeck[1], fullDeck[3]]);
+    setDeck(fullDeck.slice(4));
   };
 
-  /* ── 遊戲邏輯 ────────────────────────────────────────────────────────────── */
-  const finishGame = (ph, dh, combined) => {
+  const finishGame = (ph, dh) => {
     const res = determineWinner(ph, dh);
     setResult(res);
-    setPhase('result');
     saveGame({
-      gameId, chainGameId, gameType: 'blackjack',
-      playerSeed, playerSalt, dealerSeed, dealerSalt,
-      playerCommit, dealerCommit,
-      finalRandom: combined, playerHand: ph, dealerHand: dh, rng: RNG_VERSION,
+      gameId, chainGameId: cr.chainGameId, gameType: 'blackjack',
+      playerSeed: cr.playerSeed, playerSalt: cr.playerSalt, dealerSeed: cr.dealerSeed, dealerSalt: cr.dealerSalt,
+      playerCommit: cr.playerCommit, dealerCommit: cr.dealerCommit,
+      finalRandom: cr.finalRandom, playerHand: ph, dealerHand: dh, rng: RNG_VERSION,
       result: res,
-      commitTxHash, revealTxHash,
+      commitTxHash: cr.commitTxHash, revealTxHash: cr.revealTxHash,
       timestamp: new Date().toISOString(),
     });
   };
@@ -599,7 +474,7 @@ export default function Game() {
     const newHand = [...playerHand, card];
     setPlayerHand(newHand);
     setDeck(rest);
-    if (calcScore(newHand) > 21) finishGame(newHand, dealerHand, finalRandom);
+    if (calcScore(newHand) > 21) finishGame(newHand, dealerHand);
   };
 
   const handleStand = () => {
@@ -610,39 +485,35 @@ export default function Game() {
       remaining = remaining.slice(1);
     }
     setDealerHand(dHand);
-    finishGame(playerHand, dHand, finalRandom);
+    finishGame(playerHand, dHand);
   };
 
-  const handlePlayAgain = () => navigate('/lobby');
-
-  /* ── Render ──────────────────────────────────────────────────────────────── */
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
       <StepBar currentPhase={phase} />
 
-      {/* 錯誤提示 */}
-      {error && (
+      {cr.error && (
         <div className="mb-6">
-          <ErrorBox message={error} onDismiss={() => setError('')} />
+          <ErrorBox message={cr.error} onDismiss={cr.dismissError} />
         </div>
       )}
 
-      {loading ? (
-        <Loader text={loadMsg} txUrl={loadUrl} />
+      {cr.loading ? (
+        <Loader text={cr.loadMsg} txUrl={cr.loadUrl} />
       ) : phase === 'commit' ? (
         <CommitPhase
-          playerSeed={playerSeed} playerCommit={playerCommit}
-          dealerSeed={dealerSeed} dealerCommit={dealerCommit}
-          isOnChain={IS_ON_CHAIN} isMock={isMock}
-          isWrongNetwork={isWrongNetwork}
-          onCommit={handleCommit}
+          playerSeed={cr.playerSeed} playerCommit={cr.playerCommit}
+          dealerSeed={cr.dealerSeed} dealerCommit={cr.dealerCommit}
+          isOnChain={cr.onChain} mockReason={cr.mockReason}
+          isWrongNetwork={cr.isWrongNetwork}
+          onCommit={cr.commit}
         />
       ) : phase === 'reveal' ? (
         <RevealPhase
-          playerSeed={playerSeed} playerSalt={playerSalt} playerCommit={playerCommit}
-          dealerSeed={dealerSeed} dealerSalt={dealerSalt} dealerCommit={dealerCommit}
-          commitTxHash={commitTxHash} chainGameId={chainGameId}
-          isOnChain={IS_ON_CHAIN} isMock={isMock}
+          playerSeed={cr.playerSeed} playerSalt={cr.playerSalt} playerCommit={cr.playerCommit}
+          dealerSeed={cr.dealerSeed} dealerSalt={cr.dealerSalt} dealerCommit={cr.dealerCommit}
+          commitTxHash={cr.commitTxHash} chainGameId={cr.chainGameId}
+          isOnChain={cr.onChain}
           onReveal={handleReveal}
         />
       ) : phase === 'play' ? (
@@ -653,11 +524,11 @@ export default function Game() {
       ) : (
         <ResultPhase
           playerHand={playerHand} dealerHand={dealerHand}
-          result={result} finalRandom={finalRandom}
-          gameId={gameId} chainGameId={chainGameId}
-          commitTxHash={commitTxHash} revealTxHash={revealTxHash}
-          isOnChain={IS_ON_CHAIN} isMock={isMock}
-          onPlayAgain={handlePlayAgain}
+          result={result} finalRandom={cr.finalRandom}
+          gameId={gameId} chainGameId={cr.chainGameId}
+          commitTxHash={cr.commitTxHash} revealTxHash={cr.revealTxHash}
+          isOnChain={cr.onChain}
+          onPlayAgain={() => navigate('/lobby')}
         />
       )}
     </div>

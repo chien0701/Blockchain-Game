@@ -29,7 +29,8 @@ export default function PendingBets() {
         const betId = p.betId || await findBetIdByCommit(provider, p.commit);
         if (!betId) continue;
         const b = await getBetV3(provider, betId);
-        if (b.state !== BetState.Placed) { removePendingBet(p.commit); continue; }
+        if (b.state === BetState.Settled || b.state === BetState.Expired) { removePendingBet(p.commit); continue; }
+        if (b.state !== BetState.Placed) continue;
         if (!p.betId || !p.revealBlock) updatePendingBet(p.commit, { status: 'placed', betId, revealBlock: b.revealBlock });
       }
       reload();

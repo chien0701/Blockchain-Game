@@ -12,8 +12,9 @@
 目前有 **11 款遊戲**：8 個下注頁面對應合約 9 種遊戲類型（骰子頁含骰子與硬幣）；
 21 點、猜數字走 GameCommitReveal（**只做公平性展示，玩家可在行動前算出結果**）；挖礦為本機展示。
 
-> ⚠️ **v3 尚未部署到 Sepolia**。目前鏈上的 FairBet 是有缺陷的 v2（`0x25A7…`，玩家可下注前預知結果，
-> 見 `docs/TA_FEEDBACK_RESPONSE.md`）。前端偵測到 `.env` 指向 v2 時會自動停用下注。
+> v3 已於 2026-10-18 部署到 Sepolia（`0xb798…402c`，區塊 #11939197），**尚未做 Etherscan 原始碼驗證**；
+> 鏈上程式碼與 commit 097e0bb 的對應改以逐位元組比對證明（見 `contracts/deployments/sepolia.json`）。
+> 舊的 v2（`0x25A7…`）有協議缺陷，只供查驗舊局；前端偵測到 `.env` 指向 v2 時會自動停用下注。
 > 協議規格：`docs/PROTOCOL_V3.md`；決策紀錄：`docs/DECISIONS.md`。
 
 **核心架構原則：所有遊戲結果必須是 `finalRandom` 的純函數。**
@@ -144,17 +145,17 @@ push 到 main 會觸發 `.github/workflows/deploy.yml`。
 ```
 GameCommitReveal  0xe9C2a98699FEd3653774783160e65556f7B6aDB3
 FairBet v2        0x25A753d62A0030680C92473681e4BD52BA42A7e8   ← 已停用（協議缺陷），僅供查驗舊局
-FairBet v3        尚未部署
+FairBet v3        0xb798377B9bE67114f9302dfB6e9cC8A7Bf2c402c   ← 使用中（區塊 #11939197，未做 Etherscan 驗證）
 ```
 
 完整紀錄：`contracts/deployments/sepolia.json`。
 
 ## 已知待辦
 
-1. **部署 v3 → Etherscan 原始碼驗證 → 更新 deploy.yml 的 `VITE_FAIRBET_ADDRESS`**（需 Etherscan API key；工作目錄須乾淨）
-2. 助教交付物 A（鏈的候選比較）與 D（L1 vs L2、v3 vs VRF 比較實驗）
-3. 最終性顯示（pending／confirmed／finalized）與重組處理
-4. 21 點、猜數字的隱藏資訊協議（目前不防作弊）
-5. `Game.jsx`（21 點）未使用共用 hook；`useCommitReveal` 與 `useBetting` 重複
+1. Etherscan 原始碼驗證（需 Etherscan API key）
+2. 助教交付物 D 的 L2 與 VRF 部分（需 Arbitrum Sepolia ETH 與 LINK；L1 部分已完成，見 `docs/experiments/`）
+3. 重組處理：前端已顯示最終性，但重組發生時不會自動重新結算
+4. 21 點、猜數字的隱藏資訊協議（目前不防作弊；需獨立莊家或 mental poker，與無後端架構衝突）
+5. `useCommitReveal` 與 `useBetting` 仍是兩套流程（前者兩把種子都在前端，後者用未來區塊雜湊）
 
 逐項狀態見 [`docs/TA_FEEDBACK_RESPONSE.md`](./docs/TA_FEEDBACK_RESPONSE.md)；舊技術債見 [`docs/TECH_DEBT.md`](./docs/TECH_DEBT.md)。

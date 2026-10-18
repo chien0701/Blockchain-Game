@@ -1,0 +1,157 @@
+{
+  "generatedAt": "2026-10-18T07:00:53.606Z",
+  "assumptions": {
+    "pool": 0.03,
+    "stakeShareOfPool": 0.01,
+    "sessionRounds": 100,
+    "simulations": 20000,
+    "gasPerRound": 1109291,
+    "gasSource": "docs/experiments/sepolia-2026-10-18.json"
+  },
+  "rows": [
+    {
+      "name": "骰子 大／小／單／雙",
+      "rtp": 1,
+      "houseEdge": 0,
+      "sd": 1,
+      "maxM": 2,
+      "pMax": 0.5,
+      "pWin": 0.5,
+      "maxStakeAtFullPool": 0.015,
+      "sessionsPoolDown20": 0.02785,
+      "meanPoolChange": 0.000023760000000812992
+    },
+    {
+      "name": "猜硬幣",
+      "rtp": 1,
+      "houseEdge": 0,
+      "sd": 1,
+      "maxM": 2,
+      "pMax": 0.5,
+      "pWin": 0.5,
+      "maxStakeAtFullPool": 0.015,
+      "sessionsPoolDown20": 0.0315,
+      "meanPoolChange": 0.000025170000000622472
+    },
+    {
+      "name": "輪盤 紅黑／單雙／大小",
+      "rtp": 0.972972972972973,
+      "houseEdge": 0.027027027027026973,
+      "sd": 0.9996347031841584,
+      "maxM": 2,
+      "pMax": 0.4864864864864865,
+      "pWin": 0.4864864864864865,
+      "maxStakeAtFullPool": 0.015,
+      "sessionsPoolDown20": 0.0162,
+      "meanPoolChange": 0.0008080500000008616
+    },
+    {
+      "name": "輪盤 單號",
+      "rtp": 0.8108108108108109,
+      "houseEdge": 0.18918918918918914,
+      "sd": 4.864864864864865,
+      "maxM": 30,
+      "pMax": 0.02702702702702703,
+      "pWin": 0.02702702702702703,
+      "maxStakeAtFullPool": 0.001,
+      "sessionsPoolDown20": 0.13525,
+      "meanPoolChange": 0.005717550000000612
+    },
+    {
+      "name": "拉霸",
+      "rtp": 1.0555555555555556,
+      "houseEdge": -0.05555555555555558,
+      "sd": 1.5265146293371206,
+      "maxM": 8,
+      "pMax": 0.027777777777777776,
+      "pWin": 0.4444444444444445,
+      "maxStakeAtFullPool": 0.00375,
+      "sessionsPoolDown20": 0.1677,
+      "meanPoolChange": -0.0016665299999996004
+    },
+    {
+      "name": "Crash／Limbo 目標 2×",
+      "rtp": 1,
+      "houseEdge": 0,
+      "sd": 1,
+      "maxM": 2,
+      "pMax": 0.5,
+      "pWin": 0.5,
+      "maxStakeAtFullPool": 0.015,
+      "sessionsPoolDown20": 0.02595,
+      "meanPoolChange": 0.00003129000000095042
+    },
+    {
+      "name": "Crash／Limbo 目標 10×",
+      "rtp": 1,
+      "houseEdge": 0,
+      "sd": 3,
+      "maxM": 10,
+      "pMax": 0.1,
+      "pWin": 0.1,
+      "maxStakeAtFullPool": 0.003,
+      "sessionsPoolDown20": 0.2003,
+      "meanPoolChange": -0.000004950000004399352
+    },
+    {
+      "name": "Crash／Limbo 目標 100×",
+      "rtp": 1,
+      "houseEdge": 0,
+      "sd": 9.9498743710662,
+      "maxM": 100,
+      "pMax": 0.01,
+      "pWin": 0.01,
+      "maxStakeAtFullPool": 0.0003,
+      "sessionsPoolDown20": 0.2636,
+      "meanPoolChange": -0.00016650000000696316
+    },
+    {
+      "name": "幸運轉盤",
+      "rtp": 0.875,
+      "houseEdge": 0.125,
+      "sd": 0.9390819985496474,
+      "maxM": 2.5,
+      "pMax": 0.125,
+      "pWin": 0.5,
+      "maxStakeAtFullPool": 0.012,
+      "sessionsPoolDown20": 0.0003,
+      "meanPoolChange": 0.003769276500000647
+    },
+    {
+      "name": "Plinko",
+      "rtp": 0.9899871826171875,
+      "houseEdge": 0.010012817382812456,
+      "sd": 0.3319193191214202,
+      "maxM": 16,
+      "pMax": 0.000030517578125,
+      "pWin": 0.454498291015625,
+      "maxStakeAtFullPool": 0.001875,
+      "sessionsPoolDown20": 0.00015,
+      "meanPoolChange": 0.0002885204999997851
+    },
+    {
+      "name": "左輪 1 發",
+      "rtp": 1,
+      "houseEdge": 0,
+      "sd": 0.4472135954999579,
+      "maxM": 1.2,
+      "pMax": 0.8333333333333334,
+      "pWin": 0.8333333333333334,
+      "maxStakeAtFullPool": 0.025,
+      "sessionsPoolDown20": 0,
+      "meanPoolChange": -0.000012299999992301108
+    },
+    {
+      "name": "左輪 5 發",
+      "rtp": 1,
+      "houseEdge": 0,
+      "sd": 2.2360679774997894,
+      "maxM": 6,
+      "pMax": 0.16666666666666666,
+      "pWin": 0.16666666666666666,
+      "maxStakeAtFullPool": 0.005,
+      "sessionsPoolDown20": 0.1523,
+      "meanPoolChange": -0.00014576999999503515
+    }
+  ]
+}

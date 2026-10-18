@@ -83,7 +83,11 @@ async function main() {
 
       if (r.fault) {
         betId = null;
-        betId = await retry(() => fb.betIdByCommit(commit));
+        betId = await retry(async () => {
+          const id = await fb.betIdByCommit(commit);
+          if (id === 0n) throw new Error("RPC 節點尚未同步到這筆下注");
+          return id;
+        });
         r.recovered = betId === ev.args.betId;
       }
       if (["localhost", "hardhat"].includes(network.name)) await ethers.provider.send("evm_mine", []);

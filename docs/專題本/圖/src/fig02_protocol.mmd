@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant P as 玩家（瀏覽器）
+  participant C as FairBet v3 合約
+  participant B as 區塊鏈（出塊者）
+  Note over P: 產生 seed、salt<br/>commit = keccak256(seed‖salt)
+  P->>C: placeBet(注型, 參數, commit)＋注金
+  Note over C: 交易進入區塊 N<br/>鎖定最大賠付<br/>revealBlock = N + 1
+  Note over P,B: 此時區塊 N + 1 尚未產生 → 沒有人能預知結果
+  Note over B: 產生區塊 N + 1<br/>（其雜湊此時才確定）
+  P->>C: settleBet(betId, seed, salt)<br/>須在區塊 N + 1 之後、N + 257 之前
+  Note over C: 驗證 keccak256(seed‖salt) = commit<br/>entropy = blockhash(N + 1)<br/>finalRandom =<br/>keccak256(seed‖entropy)<br/>resolve() 判定<br/>先寫入狀態，再轉帳
+  C-->>P: BetSettled（結果、熵、finalRandom、賠付）
+  Note over P,B: 超過 revealBlock + 256 仍未結算：任何人可呼叫 claimExpired，狀態為 Expired

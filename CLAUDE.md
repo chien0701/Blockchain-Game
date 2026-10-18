@@ -5,11 +5,16 @@
 
 ## 專案概述
 
-區塊鏈公平遊戲驗證系統。核心是 **Commit-Reveal + Salt 雙盲協議**，
-讓任何第三方都能驗證遊戲結果未被竄改，且由智能合約**自動判定輸贏與賠付**。
+區塊鏈公平遊戲驗證系統。下注協議是 **FairBet v3：玩家承諾 + 未來區塊雜湊**
+（`finalRandom = keccak256(玩家種子 ‖ blockhash(下注區塊+1))`），
+由智能合約**自動判定輸贏與賠付**，任何第三方都能用唯讀 RPC 完整驗證。
 
-目前有 **11 款遊戲**，其中 **9 款可用測試幣真實下注**（合約結算），
-已部署於 **Ethereum Sepolia**。
+目前有 **11 款遊戲**：8 個下注頁面對應合約 9 種遊戲類型（骰子頁含骰子與硬幣）；
+21 點、猜數字走 GameCommitReveal（**只做公平性展示，玩家可在行動前算出結果**）；挖礦為本機展示。
+
+> ⚠️ **v3 尚未部署到 Sepolia**。目前鏈上的 FairBet 是有缺陷的 v2（`0x25A7…`，玩家可下注前預知結果，
+> 見 `docs/TA_FEEDBACK_RESPONSE.md`）。前端偵測到 `.env` 指向 v2 時會自動停用下注。
+> 協議規格：`docs/PROTOCOL_V3.md`；決策紀錄：`docs/DECISIONS.md`。
 
 **核心架構原則：所有遊戲結果必須是 `finalRandom` 的純函數。**
 唯有如此，合約才能獨立重算判定、第三方才能驗證。
@@ -28,54 +33,64 @@ src/
 ├── games/
 │   ├── registry.js         11 款遊戲單一真相來源
 │   ├── concepts.js         8 種區塊鏈概念標籤與配色
-│   └── random.js           ★ 結果計算純函數（須與合約 _resolve 逐位元一致）
+│   └── random.js           ★ resolveBet 結果與賠付純函數（合約測試直接載入它與 Solidity 比對）
 ├── hooks/
-│   ├── useBetting.js       ★ 8 款下注遊戲的流程狀態機（bet/plain/mock 三模式）
+│   ├── useBetting.js       ★ 8 款下注遊戲的流程狀態機（bet/mock）、pending 恢復、recordFields
 │   └── useCommitReveal.js  僅 Mastermind 使用
 ├── pages/            Home, Lobby, Game(21點), Verifier, Docs, Stats, Lab
 │   └── games/        Dice, Roulette, Slots, Crash, Limbo, Wheel, Plinko,
 │                     Revolver, Mastermind, Mining
+├── config/abi.js     ★ 前端 ABI（純模組；合約測試檢查與編譯產物一致）
 ├── utils/
 │   ├── crypto.js     ★ 種子/salt、承諾計算與驗證
-│   ├── contract.js   ★ 鏈上讀寫封裝、唯讀 provider、getBetData
-│   ├── gameLogic.js  21點洗牌(xorshift+Fisher-Yates)、計分、勝負
-│   └── storage.js    localStorage 集中管理 + 統計聚合
-└── __tests__/        Vitest 前端測試（28 個）
+│   ├── contract.js   ★ 鏈上讀寫：v3 下注／結算／getBetV3、v2 唯讀 getBetV2、waitForBlock
+│   ├── verify.js     ★ 驗證邏輯純函數（verified/failed/incomplete/expired/pending）
+│   ├── gameLogic.js  21點洗牌（rng v2：keccak 串流 + 拒絕採樣；v1 保留查驗舊局）、重播、猜數字密碼
+│   └── storage.js    localStorage 集中管理、統計（最近 50 局窗口）、未完成的下注
+└── __tests__/        Vitest 前端測試（61 個 + 2 個需本地節點的 E2E）
 
 contracts/
-├── contracts/FairBet.sol           ★ 9 種下注遊戲、變動倍率、資金池、自動賠付
-├── contracts/GameCommitReveal.sol  純公平驗證（無金流）
-├── test/                           Hardhat 測試（38 個）
-└── ANALYSIS.md                     Gas 報告 + Slither 安全分析
+├── contracts/FairBet.sol           ★ v3：玩家承諾 + 未來區塊雜湊、Expired 狀態、公開 resolve()
+├── contracts/GameCommitReveal.sol  公平性展示（無金流；雙種子皆在前端，不防作弊）
+├── contracts/test/PlayerProxy.sol  測試用惡意玩家（拒收 ETH、重入）
+├── test/                           Hardhat 測試（51 個，含安全回歸與 ABI 一致性）
+├── deployments/<network>.json      版本登錄表（受版控；localhost 除外）
+└── ANALYSIS.md                     v3 Gas + Slither（含 weak-prng 解讀）
+scripts/verify-bet.mjs              不依賴網站的獨立驗證工具（npm run verify:bet）
 ```
 
 ## 技術棧
 
 - 前端：React 18 + Vite 5 + TailwindCSS + React Router v6 + GSAP
 - 區塊鏈：ethers.js v6、Solidity 0.8.24、Hardhat
-- 測試：Vitest（前端 28）+ Hardhat/Chai（合約 38）
+- 測試：Vitest（前端 61 + E2E 2）+ Hardhat/Chai（合約 51）；CI 部署前全跑
 - 部署鏈：**Ethereum Sepolia（chainId 11155111）**
 - 網站：GitHub Pages（gh-pages 分支）
 
 ## 核心邏輯
 
-### Commit-Reveal with Salt
+### FairBet v3 協議
 
-1. **Commit**：雙方各產生 seed 與 salt，提交 `keccak256(seed‖salt)` 上鏈
-2. **Reveal**：公開明文，合約驗證 `keccak256(seed‖salt) == commit`
-3. **Result**：`finalRandom = keccak256(seedP‖seedD)`，合約用純函數判定結果
-4. **Verify**：第三方用唯讀 RPC 讀鏈上資料重算比對
+1. **下注**：玩家送 `placeBet(gameType, betType, param, keccak256(seed‖salt))` + 注金；合約記 `revealBlock = block.number + 1`
+2. **等區塊**：前端輪詢到最新區塊 ≥ revealBlock（下注當下該區塊不存在 → 無人能預知結果）
+3. **結算**：`settleBet(betId, seed, salt)`，限該局玩家、須在 `revealBlock < 區塊 ≤ revealBlock+256`；
+   `entropy = blockhash(revealBlock)`、`finalRandom = keccak256(seed‖entropy)`、`resolve()` 判定並轉帳；種子、熵、結果寫入 storage
+4. **過期**：超過 256 區塊任何人可 `claimExpired` → 狀態 `Expired`，注金留池
+5. **驗證**：`getBet()` 一次取得全部證據，另向 RPC 取區塊雜湊比對 entropy，再重算 finalRandom、outcome、payout
+
+殘餘風險：玩家與開獎區塊出塊者串通（Slither `weak-prng` 標出的即此）。
 
 前端 `ethers.solidityPackedKeccak256(['bytes32','bytes32'],[a,b])`
 ≡ 合約 `keccak256(abi.encodePacked(a,b))`——**這個等價關係是整個系統的地基**。
 
-### 三種執行模式（`useBetting.js` 內判斷）
+### 執行模式（`useBetting.js`）
 
 | 模式 | 條件 | 行為 |
 |---|---|---|
-| `bet` | 有 `VITE_FAIRBET_ADDRESS` + 已連 MetaMask | 真實下注、合約結算、自動賠付 |
-| `plain` | 只有 `VITE_CONTRACT_ADDRESS` | 僅上鏈公平驗證，無金流 |
-| `mock` | 無合約地址或使用模擬錢包 | 純前端模擬 |
+| `bet` | 有 v3 的 `VITE_FAIRBET_ADDRESS` + 已連接 MetaMask | 真實下注、合約結算、自動賠付；送出前寫入 pending |
+| `mock` | 其他情況（未連錢包、無 MetaMask、地址未設定或仍為 v2） | 同一套協議，熵由本機產生，不上鏈 |
+
+「贏」= 賠付 > 注金（`netResult`）；賠付 = 注金為平；全系統一致。
 
 ### 變動倍率
 
@@ -93,9 +108,11 @@ Crash/Limbo：`crashBps = min(1e6, 10000·2^52/(2^52 − fr mod 2^52))`，
 | `vite.config.js` 的 `base` 與 `main.jsx` 的 `basename` | 兩者須同為 `/Blockchain-Game/` |
 | `public/404.html` | GitHub Pages SPA 路由依賴它 |
 
-**改遊戲結果公式必須同步三處**：
-`src/games/random.js` ↔ `contracts/contracts/FairBet.sol` ↔ `contracts/test/FairBet.test.js`
-改完須 `npm test` + `npx hardhat test` 全過，**且要重新部署合約**。
+**改遊戲結果或賠付公式必須同步兩處**：`src/games/random.js` 的 `resolveBet` ↔ 合約 `resolve()`。
+合約測試直接載入前端 `random.js` 比對，改一邊沒改另一邊會失敗。改完須 `npm test` + `npx hardhat test` 全過，**且要重新部署合約**。
+**改合約介面**須同步 `src/config/abi.js`（`AbiSync.test.js` 會檢查）。
+
+**不要**把「Slither 無高危」當安全論證；**不要**讓任何人能替玩家提交亂數（v2 的教訓）。
 
 **種子必須用 `useState(() => generateSeed())` 惰性初始化**，全程不可重新產生
 （重玩靠 `key={round}` 重新掛載）。
@@ -105,11 +122,12 @@ Crash/Limbo：`crashBps = min(1e6, 10000·2^52/(2^52 − fr mod 2^52))`，
 ```bash
 npm run dev            # 開發（http://localhost:5173/Blockchain-Game/）
 npm run build          # 建置（讀 .env 的 VITE_* 寫死進去）
-npm test               # 前端測試（Vitest，28 個）
+npm test               # 前端測試（Vitest，61 個；E2E 需本地節點，見 docs/TA_FEEDBACK_RESPONSE.md）
+npm run verify:bet -- --rpc <RPC> --address <FairBet v3> --bet <id>   # 獨立驗證
 
 cd contracts
-npx hardhat test                                    # 合約測試（38 個）+ gas 報告
-npx hardhat run scripts/deploy.js --network sepolia # 部署雙合約 + 注資金池
+npx hardhat test                                    # 合約測試（51 個）+ gas 報告
+npx hardhat run scripts/deploy.js --network sepolia # 部署雙合約 + 注資金池（工作目錄須已 commit）
 slither .                                           # 靜態安全分析
 ```
 
@@ -125,14 +143,18 @@ push 到 main 會觸發 `.github/workflows/deploy.yml`。
 
 ```
 GameCommitReveal  0xe9C2a98699FEd3653774783160e65556f7B6aDB3
-FairBet           0x25A753d62A0030680C92473681e4BD52BA42A7e8
+FairBet v2        0x25A753d62A0030680C92473681e4BD52BA42A7e8   ← 已停用（協議缺陷），僅供查驗舊局
+FairBet v3        尚未部署
 ```
+
+完整紀錄：`contracts/deployments/sepolia.json`。
 
 ## 已知待辦
 
-1. **合約原始碼未在 Etherscan 驗證**——`owner` 改 `immutable` 後鏈上 bytecode 與原始碼不一致，
-   需取得 Etherscan API key 後「重新部署 → 驗證」一次到位。
-2. `Game.jsx`（21 點，665 行）自行實作流程，未使用共用 hook，應重構。
-3. `useCommitReveal` 與 `useBetting` 高度重複，應合併。
+1. **部署 v3 → Etherscan 原始碼驗證 → 更新 deploy.yml 的 `VITE_FAIRBET_ADDRESS`**（需 Etherscan API key；工作目錄須乾淨）
+2. 助教交付物 A（鏈的候選比較）與 D（L1 vs L2、v3 vs VRF 比較實驗）
+3. 最終性顯示（pending／confirmed／finalized）與重組處理
+4. 21 點、猜數字的隱藏資訊協議（目前不防作弊）
+5. `Game.jsx`（21 點）未使用共用 hook；`useCommitReveal` 與 `useBetting` 重複
 
-完整技術債清單見 [`docs/TECH_DEBT.md`](./docs/TECH_DEBT.md)。
+逐項狀態見 [`docs/TA_FEEDBACK_RESPONSE.md`](./docs/TA_FEEDBACK_RESPONSE.md)；舊技術債見 [`docs/TECH_DEBT.md`](./docs/TECH_DEBT.md)。

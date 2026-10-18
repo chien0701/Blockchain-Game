@@ -1,5 +1,7 @@
 # 系統架構與資料流
 
+> **2026-10-02 更新**：第三、五節已改為 FairBet v3 流程；完整協議規格與部署圖見 [PROTOCOL_V3.md](./PROTOCOL_V3.md)。
+
 ## 一、整體架構
 
 **沒有傳統後端、沒有資料庫伺服器。** 這是刻意的架構決策：
@@ -16,8 +18,8 @@ graph TB
     end
 
     subgraph Chain["Ethereum Sepolia 測試網"]
-        FB["FairBet 合約<br/>下注 · 判定 · 自動賠付 · 資金池"]
-        CR["GameCommitReveal 合約<br/>純公平驗證（無金流）"]
+        FB["FairBet v3 合約<br/>下注 · 判定 · 自動賠付 · 資金池<br/>熵 = 下注後下一個區塊的雜湊"]
+        CR["GameCommitReveal 合約<br/>公平性展示（無金流、不防作弊）"]
     end
 
     EXT["第三方驗證者<br/>（不需錢包）"]
@@ -41,12 +43,13 @@ graph TB
 | 節點 | 檔案 | 用途 |
 |---|---|---|
 | 表現層 | `src/pages/`、`src/components/` | 畫面渲染、使用者互動 |
-| 應用邏輯層 | `src/hooks/`、`src/games/` | 遊戲流程狀態機、結果計算、遊戲註冊 |
+| 應用邏輯層 | `src/hooks/`、`src/games/` | 遊戲流程狀態機、結果與賠付計算（`resolveBet`）、遊戲註冊 |
+| 驗證層 | `src/utils/verify.js`、`scripts/verify-bet.mjs` | 純函數驗證判定；不依賴網站的命令列工具 |
 | 密碼學層 | `src/utils/crypto.js` | 種子／salt 生成、承諾計算、承諾驗證 |
 | 錢包層 | `src/context/WalletContext.jsx` | MetaMask 連線、網路切換、取得 signer |
 | 合約互動 | `src/utils/contract.js` | 封裝所有鏈上讀寫，含唯讀 provider |
 | 本地儲存 | `src/utils/storage.js` | 遊戲紀錄索引、UI 偏好、統計聚合 |
-| FairBet 合約 | `contracts/contracts/FairBet.sol` | 9 種下注遊戲的收注／判定／賠付／資金池 |
+| FairBet v3 合約 | `contracts/contracts/FairBet.sol` | 9 種下注遊戲的收注／判定／賠付／資金池；公開 `resolve()` |
 | GameCommitReveal | `contracts/contracts/GameCommitReveal.sol` | 純 Commit-Reveal 驗證（21 點、Mastermind 用） |
 
 ---
@@ -102,52 +105,44 @@ graph TD
 
 ---
 
-## 三、資料流程圖（以「鏈上下注」為例）
+## 三、資料流程圖（以「鏈上下注」為例，v3）
 
 ```mermaid
 sequenceDiagram
     participant U as 使用者
     participant P as 遊戲頁<br/>(如 Dice.jsx)
     participant H as useBetting
-    participant C as crypto.js
+    participant S as storage.js
     participant CT as contract.js
     participant MM as MetaMask
-    participant FB as FairBet 合約
-    participant S as storage.js
+    participant FB as FairBet v3
 
-    Note over H,C: 元件掛載時
-    H->>C: generateSeed() × 2、generateSalt() × 2
-    H->>C: commitHash(seed, salt) → playerCommit / dealerCommit
-
+    Note over H: 元件掛載時：seed、salt = CSPRNG；commit = keccak(seed‖salt)
     U->>P: 選注型 + 注金 + 按「下注並開獎」
     P->>H: quickPlay({gameType, betType, param, amountEth})
-
-    H->>CT: placeBetOnChain(signer, {...})
-    CT->>MM: 請求簽署（附 msg.value = 注金）
-    MM->>FB: placeBet(gameType, betType, param, pCommit, dCommit)
-    FB-->>CT: BetPlaced event → betId
-    Note over FB: 注金入池、鎖定最大賠付
-
-    H->>CT: settleBetOnChain(signer, betId, seeds, salts)
-    CT->>MM: 請求簽署
-    MM->>FB: settleBet(betId, pSeed, pSalt, dSeed, dSalt)
-    Note over FB: 1. 驗證兩個承諾<br/>2. finalRandom = keccak256(pSeed‖dSeed)<br/>3. _resolve() 算結果與倍率<br/>4. 贏則自動轉帳
-    FB-->>CT: BetSettled event（won, outcome, finalRandom, payout）
-
-    CT-->>H: {finalRandom, won, outcome, payoutEth}
-    H-->>P: phase = 'ready'
-    P->>P: 用 games/random.js 本地重算結果
-    P->>P: 比對 合約 outcome === 本地重算 → 顯示一致性
-    P->>S: saveGame({...種子, 承諾, finalRandom, betAmount, payout})
-    S->>S: 寫入 fairchain_game_<id> + 更新 fairchain_index
-    P-->>U: 顯示結果 + 密碼學證明 + 賠付金額
+    H->>MM: 取得 signer（未連錢包則停止）
+    H->>S: savePendingBet({commit, seed, salt, …})
+    H->>CT: placeBetOnChain(signer, {..., playerCommit})
+    MM->>FB: placeBet(gameType, betType, param, commit)
+    Note over FB: 注金入池、鎖定最大賠付<br/>revealBlock = 區塊 + 1
+    FB-->>CT: BetPlaced(betId, revealBlock)
+    H->>S: updatePendingBet({betId, revealBlock})
+    H->>CT: waitForBlock(revealBlock)
+    H->>CT: settleBetOnChain(signer, betId, seed, salt)
+    MM->>FB: settleBet(betId, seed, salt)
+    Note over FB: 驗證承諾、期限<br/>entropy = blockhash(revealBlock)<br/>finalRandom = keccak(seed‖entropy)<br/>resolve() → 先寫狀態、再轉帳
+    FB-->>CT: BetSettled(won, outcome, entropy, finalRandom, payout)
+    H->>H: resolveBet() 重算結果與賠付 → consistent
+    H->>S: removePendingBet(commit)
+    P->>S: saveGame({...recordFields(), result})
+    P-->>U: 結果、賠付、一致性標記
 ```
 
 ### 關鍵設計：為什麼前端要「本地重算」再比對？
 
-合約已經算出結果了，前端仍用 `games/random.js` 重算一次並比對，
-是為了**當場證明「前端演算法 ≡ 合約演算法」**。若兩者不一致會顯示 🚨 警告。
-這是「逐位元一致」主張的即時證據。
+合約已經算出結果，前端仍用 `resolveBet()` 重算**結果與賠付**並比對，
+用來當場證明「前端演算法 ≡ 合約演算法」；不一致會顯示 🚨 警告。
+這項一致性另由合約測試把關：測試**直接載入前端的 `random.js`** 與 Solidity 比對。
 
 ---
 
@@ -189,25 +184,27 @@ flowchart TD
 
 ## 五、資料流追蹤（依功能）
 
-### A. 種子與承諾（所有 Commit-Reveal 遊戲）
+### A. 種子、承諾與熵（下注遊戲，v3）
 
 ```
 useBetting 掛載
-  → crypto.generateSeed()      產生 32-byte 隨機種子（ethers.randomBytes，CSPRNG）
-  → crypto.generateSalt()      產生 32-byte 隨機 salt
-  → crypto.commitHash(s, salt) = ethers.solidityPackedKeccak256(['bytes32','bytes32'],[s,salt])
-  → 存於 useState（惰性初始化，全程不重新產生 ← 若中途改變承諾會對不上）
-  → placeBet 時只送 commit 上鏈（種子仍保密）
-  → settleBet 時才送出明文 seed + salt
-  → 合約 keccak256(abi.encodePacked(seed, salt)) 比對
+  → generateSeed()、generateSalt()        32-byte CSPRNG（ethers.randomBytes）
+  → commit = keccak256(seed‖salt)         useState 惰性初始化，全程不變
+  → placeBet 只送 commit（種子仍保密），送出前寫入 pending
+  → 合約記 revealBlock = 下注區塊 + 1
+  → 等最新區塊 ≥ revealBlock
+  → settleBet 送出 seed + salt
+  → 合約：keccak256(seed‖salt) == commit；entropy = blockhash(revealBlock)
 ```
+
+21 點、猜數字（GameCommitReveal）仍是雙種子，兩個都在前端產生，只做公平性展示。
 
 ### B. 結果計算（下注遊戲）
 
 ```
 合約 settleBet
-  → finalRandom = keccak256(abi.encodePacked(playerSeed, dealerSeed))
-  → _resolve(gameType, betType, param, amount, finalRandom)
+  → finalRandom = keccak256(abi.encodePacked(seed, entropy))
+  → resolve(gameType, betType, param, amount, finalRandom)   public pure
       Dice     : uint32(bytes4(fr)) % 6 + 1
       Roulette : uint32(bytes4(fr)) % 37
       Slots    : 三段 bytes4 各 % 6
@@ -215,10 +212,11 @@ useBetting 掛載
       Wheel    : uint256(fr) % 8 → 倍率表
       Plinko   : popcount(uint256(fr) & 0xFFFF) → 17 槽倍率表
       Revolver : uint256(fr) % 6，存活條件 chamber >= 子彈數
-  → payout = amount × multiplierBps / 10000
-  → emit BetSettled
+  → payout = amount × multiplierBps / 10000（向下取整，含本金）
+  → won = payout > amount（淨贏）
+  → 寫入 storage、轉帳、emit BetSettled
 
-前端同時用 games/random.js 以完全相同公式重算 → 比對一致性
+前端 games/random.js 的 resolveBet() 以完全相同公式重算 → 比對結果與賠付
 ```
 
 ### C. 儲存與統計
@@ -238,17 +236,19 @@ Verifier → storage.loadGame(id)  → 完整紀錄重算驗證
 ### D. 鏈上驗證（第三方，不需錢包）
 
 ```
-使用者輸入鏈上 Game ID
-  → contract.getReadOnlyProvider()      new ethers.JsonRpcProvider(公開 RPC)
-  → contract.getGameData(provider, id)  呼叫 GameCommitReveal.getGame()
-  → 取回 player/commit/seed/salt/finalRandom/state
-  → 前端用 crypto.verifyCommit() 與 combineSeeds() 重算比對
-  → 用 gameLogic.dealCards(finalRandom) 重算牌面顯示
-```
+下注局（FairBet v3）
+  → getReadOnlyProvider(可自訂 RPC)，檢查 chainId 與部署鏈一致
+  → getBetV3(provider, betId)      一次取得 seed、salt、commit、revealBlock、entropy、finalRandom、outcome、payout
+  → getBlockHash(provider, revealBlock)   另外取得區塊雜湊，不採信合約記錄
+  → verifyBetV3(bet, blockHash)    承諾 → 熵 → finalRandom → 結果 → 賠付
+  → verified / failed / incomplete / expired / pending
 
-> ✅ **已補齊（2026-09-08）**：Verifier 現有三種模式——
-> 「本地紀錄」「鏈上・公平局」（GameCommitReveal）與「**鏈上・下注局**」（FairBet）。
-> 下注局驗證流程：`getBetData()` 讀 `getBet()` 取得承諾與 finalRandom，
-> 再以 `BetSettled` 事件定位結算交易、解碼 calldata 取回種子，
-> 完成「承諾驗證 + finalRandom 驗證 + outcome 重算比對」三項；
-> 若 RPC 限制日誌查詢，則降級為「outcome 一致性」驗證並明確告知。
+下注局（v2，已停用）
+  → getBetV2：依結算時間戳二分搜尋區塊，只查附近日誌取種子；錯誤分類
+  → verifyBetV2：過期局以 finalRandom 為零辨識；缺種子 → incomplete
+
+公平局（GameCommitReveal）
+  → getGameData → 核對承諾與 finalRandom（不代表種子來源獨立）
+
+命令列：npm run verify:bet -- --rpc … --address … --bet …（不經過網站）
+```

@@ -1,5 +1,7 @@
 # 開發指南
 
+> **2026-10-02 更新**：下注協議已改為 FairBet v3（玩家承諾 + 未來區塊雜湊），細節以 [PROTOCOL_V3.md](./PROTOCOL_V3.md) 為準；助教回饋的逐項處理見 [TA_FEEDBACK_RESPONSE.md](./TA_FEEDBACK_RESPONSE.md)。本文件若與兩者衝突，以兩者為準。
+
 包含三部分：**新組員 3 天上手** ／ **修改專案前必讀** ／ **專案地圖**。
 
 ---
@@ -43,13 +45,13 @@ npm run dev
 | 3 | `src/hooks/useBetting.js` | 197 | 流程狀態機，**第 53 行的 mode 判斷是核心** |
 | 4 | `src/pages/games/Dice.jsx` | ~130 | 最單純的遊戲頁，看它怎麼組合上面三者 |
 | 5 | `src/components/CommitRevealFlow.jsx` | 248 | 共用的承諾/揭露 UI |
-| 6 | `contracts/contracts/FairBet.sol` | 235 | **重點看 `settleBet` 與 `_resolve`** |
+| 6 | `contracts/contracts/FairBet.sol` | 約 255 | **重點看 `placeBet`、`settleBet` 與 `resolve`**，並讀 `docs/PROTOCOL_V3.md` |
 | 7 | `src/utils/storage.js` | 149 | localStorage 的所有存取 |
 
 **動手練習（不改功能）**
 ```bash
 cd contracts
-npx hardhat test        # 看 38 個測試全過
+npx hardhat test        # 看 51 個測試全過
 ```
 然後打開 `contracts/test/FairBet.test.js`，看它如何用 JS 重寫合約公式來交叉驗證。
 
@@ -105,7 +107,8 @@ npx hardhat test        # 看 38 個測試全過
 
 ### 改「遊戲結果公式」→ 必須同步三處
 ```
-src/games/random.js  ←→  contracts/contracts/FairBet.sol (_resolve)
+src/games/random.js (resolveBet)  ←→  contracts/contracts/FairBet.sol (resolve)   ← 合約測試直接載入前者比對
+src/config/abi.js                ←→  合約編譯產物                                ← AbiSync.test.js 檢查
                      ←→  contracts/test/FairBet.test.js (JS 等價實作)
 ```
 改完必須 `npx hardhat test` 全過，**且要重新部署合約**才會生效。
@@ -178,10 +181,10 @@ Blockchain-Game/
 │   ├── games/
 │   │   ├── registry.js            ★ 11 款遊戲的單一真相來源（大廳與首頁自動讀取）
 │   │   ├── concepts.js            8 種區塊鏈概念的標籤與配色（查表避免 Tailwind purge）
-│   │   └── random.js              ★ 結果計算純函數，必須與合約 _resolve 逐位元一致
+│   │   └── random.js              ★ resolveBet 結果與賠付純函數，必須與合約 resolve 逐位元一致
 │   │
 │   ├── hooks/
-│   │   ├── useBetting.js          ★ 8 款下注遊戲的流程狀態機（bet/plain/mock 三模式）
+│   │   ├── useBetting.js          ★ 8 款下注遊戲的流程狀態機（bet/mock）、pending 恢復
 │   │   └── useCommitReveal.js     僅 Mastermind 使用；與 useBetting 高度重複（技術債）
 │   │
 │   ├── pages/
@@ -239,7 +242,7 @@ npm run build          # 建置（會讀 .env 的 VITE_* 寫死進去）
 # 合約
 cd contracts
 npx hardhat compile
-npx hardhat test                                    # 38 個測試
+npx hardhat test                                    # 51 個測試
 npx hardhat run scripts/deploy.js --network sepolia # 部署（需 contracts/.env）
 npx hardhat test                                    # 同時產出 gas-report.txt
 slither .                                           # 靜態安全分析

@@ -1,5 +1,7 @@
 # 功能說明
 
+> **2026-10-02 更新**：下注協議已改為 FairBet v3（玩家承諾 + 未來區塊雜湊），細節以 [PROTOCOL_V3.md](./PROTOCOL_V3.md) 為準；助教回饋的逐項處理見 [TA_FEEDBACK_RESPONSE.md](./TA_FEEDBACK_RESPONSE.md)。本文件若與兩者衝突，以兩者為準。
+
 每個功能依「目的／使用方式／系統流程／程式實作／核心邏輯／限制／可能問題／改進」說明。
 
 ---
@@ -47,7 +49,7 @@ chainId ≠ 11155111 → isWrongNetwork = true → Navbar 顯示切換橫幅
 下注     placeBet(gameType, betType, param, commitP, commitD) + msg.value
          → 合約收注、鎖定最大賠付、emit BetPlaced → betId
 揭露     settleBet(betId, seedP, saltP, seedD, saltD)
-         → 驗證兩承諾 → finalRandom → _resolve 判定 → 自動賠付 → emit BetSettled
+         → 等開獎區塊 → 驗證玩家承諾 → finalRandom = keccak(seed‖blockhash) → resolve 判定 → 自動賠付 → emit BetSettled
 前端     用 games/random.js 重算 → 與合約 outcome 比對 → 顯示一致性
          → storage.saveGame() 寫入紀錄
 ```
@@ -64,18 +66,18 @@ chainId ≠ 11155111 → isWrongNetwork = true → Navbar 顯示切換橫幅
 
 **【重要程式邏輯】**
 - `useBetting.js:53` 的 `mode` 判斷是整個系統的分流核心：
-  `isMock ? 'mock' : IS_BETTING ? 'bet' : IS_ON_CHAIN ? 'plain' : 'mock'`
+  `IS_BETTING && isConnected && !isMock ? 'bet' : 'mock'`（v3；plain 已移除）
 - `quickPlay()` 在同一個 async 函式中連發兩筆交易，UI 不中斷（**鏈上仍是兩筆交易**，只是體驗連貫）。
 - 每個遊戲頁用 `crForFlow = { ...cr, commit: () => cr.commit(params()), quickPlay: ... }`
   把自己的注型參數包進去，共用元件不需認識個別遊戲。
 
 **【限制】**
 - 需兩筆交易 → Sepolia 約 12 秒/筆，一局約 25–30 秒。
-- 因為是單人對合約，**莊家種子由前端持有**，嚴格雙盲在此弱化（詳見 TECHNICAL_DETAILS）。
+- v2 的「莊家種子」由前端持有，玩家可在下注前算出結果（助教 T03）；v3 已移除莊家種子，改用下注後下一個區塊的雜湊。
 
 **【可能問題】**
 - 注金超過資金池可賠付上限 → 合約 `revert PoolInsufficient`（前端注金面板已做上限保護，但若池餘額變動仍可能發生）。
-- 使用者在兩筆交易中間關閉頁面 → 注金卡在合約，需等 1 小時後由任何人呼叫 `claimExpired` 沒收。
+- 使用者在兩筆交易中間關閉頁面 → 種子已在送出前存入 localStorage，回到大廳的「未完成的下注」即可結算同一局；超過 256 個區塊才會過期。
 
 **【改進】** 遷移至 L2（Arbitrum）降低延遲；把兩階段壓成單筆交易的變體設計。
 
@@ -150,7 +152,7 @@ hash = keccak256(`${blockData}:${nonce}`)
 **【系統流程】**
 ```
 commit 階段：dealerCommit 上鏈（密碼由 dealerSeed 推導但尚未公開）
-播放階段：secret = [0..3].map(i => intFromHex(dealerSeed, i, 1) % 6)
+播放階段：secret = mastermindSecret(dealerSeed)   // rng v2：keccak 串流 + 拒絕採樣；舊紀錄 rng v1 為單 byte % 6（有偏差）
          每次猜測計算 exact / partial 回饋
 結束（猜中或用完 8 次）→ 呼叫 cr.reveal() 揭露 → 證明 seedD 與承諾吻合
 ```
@@ -280,7 +282,7 @@ recent.filter(bet > 0).reverse()  → 只取真實下注局、轉成時間序
 
 **【功能目的】** 讓不懂密碼學的人親手操作一次 Commit-Reveal。
 
-**【系統流程】** 4 步驟：生成種子 → 提交承諾（莊家種子模糊隱藏）→ 揭露驗證 → 顯示骰子結果。
+**【系統流程】** 4 步驟：生成種子 → 提交承諾並下注 → 等開獎區塊 → 揭露結算 → 顯示骰子結果。
 **使用真實的 `crypto.js` 函式**，不是假動畫。
 
 **【程式實作】** `src/pages/Docs.jsx`（`InteractiveDemo` 元件）+ `src/games/concepts.js`（概念詞彙表）

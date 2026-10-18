@@ -1,5 +1,7 @@
 # 專案總覽
 
+> **2026-10-02 更新**：下注協議已改為 FairBet v3（玩家承諾 + 未來區塊雜湊），細節以 [PROTOCOL_V3.md](./PROTOCOL_V3.md) 為準；助教回饋的逐項處理見 [TA_FEEDBACK_RESPONSE.md](./TA_FEEDBACK_RESPONSE.md)。本文件若與兩者衝突，以兩者為準。
+
 ## 1. 這個專題是什麼？
 
 FairChain 是一個**區塊鏈公平遊戲驗證系統**。表面上它是個線上賭場（11 款遊戲），
@@ -23,7 +25,8 @@ FairChain 把「你要相信我」換成「**你可以自己算、自己驗**」
 | 承諾不能事後偷改 | **不可竄改**（寫進區塊鏈就改不掉） |
 | 任何人都能查證 | **公開可讀**（全球節點都存著同一份資料） |
 
-再加上密碼學的 **Commit-Reveal 雙盲協議**，做到「雙方都無法單獨操控結果」。
+再加上 **玩家承諾 + 未來區塊雜湊**（FairBet v3）：玩家下注時開獎區塊尚未產生，無法預選結果；殘餘風險是玩家與出塊者串通。
+（v2 宣稱的「雙方都無法單獨操控」並不成立——兩個種子都在玩家瀏覽器產生，見 TA_FEEDBACK_RESPONSE。）
 
 ## 4. 系統主要使用者是誰？
 
@@ -74,7 +77,6 @@ FairChain 把「你要相信我」換成「**你可以自己算、自己驗**」
 | 模式 | 觸發條件 | 行為 |
 |---|---|---|
 | `bet` | 有設定 `VITE_FAIRBET_ADDRESS` 且已連 MetaMask | 真實下注 + 合約結算 + 自動賠付 |
-| `plain` | 只設 `VITE_CONTRACT_ADDRESS` | 僅上鏈公平驗證，無金流 |
 | `mock` | 未設合約地址，或使用模擬錢包 | 純前端模擬（無 MetaMask 也能展示流程） |
 
 ## 7. 使用了哪些技術？
@@ -86,7 +88,7 @@ FairChain 把「你要相信我」換成「**你可以自己算、自己驗**」
 | 動畫 | GSAP 3 + ScrollTrigger + @gsap/react |
 | 區塊鏈互動 | ethers.js v6 |
 | 智能合約 | Solidity 0.8.24 + Hardhat |
-| 測試 | Hardhat + Chai（38 個合約測試） |
+| 測試 | Vitest 61 個前端測試 + Hardhat/Chai 51 個合約測試（含安全回歸）＋ 2 個本地節點 E2E |
 | 分析工具 | hardhat-gas-reporter、Slither 0.11.6 |
 | 部署鏈 | Ethereum Sepolia 測試網（chainId 11155111） |
 | 網站部署 | GitHub Pages（gh-pages 分支） |

@@ -1,0 +1,25 @@
+flowchart TB
+  subgraph BR["使用者瀏覽器（FairChain 前端，GitHub Pages 靜態網站）"]
+    UI["表現層<br/>React 頁面與元件"]
+    APP["應用邏輯層<br/>useBetting 流程狀態機<br/>resolveBet 結果與賠付計算"]
+    VER["驗證層<br/>verify.js"]
+    CRY["密碼學層<br/>crypto.js（Keccak256）"]
+    LS[("localStorage<br/>紀錄快取・未完成的下注")]
+    W["MetaMask 錢包"]
+  end
+  RPC["RPC 節點"]
+  subgraph CH["Ethereum Sepolia"]
+    FB["FairBet v3 合約<br/>下注・判定<br/>自動賠付・資金池"]
+    CR["GameCommitReveal 合約<br/>公平性展示（無金流）"]
+  end
+  V["第三方驗證者<br/>網頁驗證工具<br/>或命令列工具"]
+  UI --> APP
+  UI --> VER
+  APP --> CRY
+  APP --> LS
+  APP --> W
+  W -->|已簽署交易| RPC
+  VER -->|唯讀查詢| RPC
+  V -->|唯讀查詢| RPC
+  RPC --> FB
+  RPC --> CR

@@ -1,5 +1,7 @@
 # 核心技術細節
 
+> **2026-10-02 更新**：下注協議已改為 FairBet v3（玩家承諾 + 未來區塊雜湊），細節以 [PROTOCOL_V3.md](./PROTOCOL_V3.md) 為準；助教回饋的逐項處理見 [TA_FEEDBACK_RESPONSE.md](./TA_FEEDBACK_RESPONSE.md)。本文件若與兩者衝突，以兩者為準。
+
 ## 一、核心程式碼地圖
 
 | 重要性 | 檔案 | 負責什麼 |
@@ -21,13 +23,14 @@
 
 ```js
 // src/utils/crypto.js
-commitHash(seed, salt) = ethers.solidityPackedKeccak256(['bytes32','bytes32'], [seed, salt])
-combineSeeds(sP, sD)   = ethers.solidityPackedKeccak256(['bytes32','bytes32'], [sP, sD])
+commitHash(seed, salt)     = ethers.solidityPackedKeccak256(['bytes32','bytes32'], [seed, salt])
+combineSeeds(seed, entropy) = ethers.solidityPackedKeccak256(['bytes32','bytes32'], [seed, entropy])
 ```
 ```solidity
-// FairBet.sol:135-138
+// FairBet.sol settleBet（v3）
 keccak256(abi.encodePacked(playerSeed, playerSalt)) == b.playerCommit
-bytes32 fr = keccak256(abi.encodePacked(playerSeed, dealerSeed));
+bytes32 entropy = blockhash(b.revealBlock);          // 下注區塊 + 1
+bytes32 fr = keccak256(abi.encodePacked(playerSeed, entropy));
 ```
 
 **輸入**：兩個 32-byte 值　**輸出**：一個 32-byte 雜湊
@@ -144,7 +147,8 @@ lockedPayouts += potential;
 ### 防線二：超時沒收（防不揭露逃逸）
 
 Commit-Reveal 的經典漏洞：玩家發現會輸就不揭露，想賴掉賭注。
-`claimExpired(betId)` 讓**任何人**在 1 小時後沒收該注入池，使「不揭露」無利可圖。
+v3：注金在下注時已進入合約；超過 `revealBlock + 256` 個區塊未結算，**任何人**可呼叫 `claimExpired(betId)`，狀態變為 `Expired`，注金留池。不揭露等於輸掉注金，無利可圖。
+⚠️ 這條防線只處理**下注之後**的拒絕揭露。v2 曾誤以為它也能補救「莊家種子在前端」——那是錯的，下注**之前**的預選必須靠協議本身（v3 的未來區塊熵）防止。
 
 ### 防線三：重入防護（Checks-Effects-Interactions）
 
@@ -173,11 +177,11 @@ if (payout > 0) { msg.sender.call{value: payout}(""); }   // Interactions：最�
 | FairBet 部署 | 1,358,713（區塊上限 2.3%） |
 | GameCommitReveal 部署 | 424,766 |
 
-一局完整下注（placeBet + settleBet）約 **332,000 gas**。
+以上為 v2 數據。**v3** 一局約 **31.3 萬 gas**（placeBet 約 15.1 萬、settleBet 約 16 萬），詳見 `contracts/ANALYSIS.md`。
 
 ### Slither 靜態分析（0.11.6，2 合約 / 102 偵測器）
 
-**6 項結果，全部為低危或資訊性，無高／中危漏洞。**
+以下為 **v2** 的結果（6 項，皆低危或資訊性）。**v3 重跑後有 13 筆高危 `weak-prng`**，對應已知的「出塊者與玩家串通」風險；且 v2 掃描乾淨卻可被預選——**Slither 結果不能當作協議安全的證明**。詳見 `contracts/ANALYSIS.md`。
 
 | 偵測項 | 等級 | 評估 |
 |---|---|---|
@@ -241,7 +245,7 @@ if (payout > 0) { msg.sender.call{value: payout}(""); }   // Interactions：最�
 - **原因**：整數運算才能保證前後端逐位元一致；(c) 違反決策 1。
 - **Trade-off**：精度受限於萬分位；除法順序必須前後端一致（先乘後除）。
 
-### 決策 4：三模式降級（bet / plain / mock）
+### 決策 4：模式降級（v3 起改為 bet / mock 兩種；plain 已移除）
 
 - **問題**：沒有 MetaMask 或沒設合約地址的人（例如口試現場網路異常）也要能展示。
 - **選項**：(a) 強制上鏈 (b) 只做模擬 (c) 依環境自動降級

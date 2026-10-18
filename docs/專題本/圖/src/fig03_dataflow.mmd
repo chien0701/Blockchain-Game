@@ -1,0 +1,23 @@
+sequenceDiagram
+  participant G as 遊戲頁
+  participant H as useBetting
+  participant S as storage.js
+  participant T as contract.js
+  participant W as MetaMask
+  participant F as FairBet v3
+  G->>H: quickPlay(注型, 參數, 注金)
+  H->>W: 取得簽署者
+  H->>S: savePendingBet（承諾、種子、salt）
+  H->>T: placeBetOnChain(commit)
+  T->>W: 請求簽署
+  W->>F: placeBet
+  F-->>T: BetPlaced(betId, revealBlock)
+  H->>S: updatePendingBet(betId, revealBlock)
+  H->>T: waitForBlock(revealBlock)
+  H->>T: settleBetOnChain(betId, seed, salt)
+  T->>W: 請求簽署
+  W->>F: settleBet
+  F-->>T: BetSettled(結果, 熵, finalRandom, 賠付)
+  Note over H: resolveBet() 本地重算並比對
+  H->>S: removePendingBet
+  G->>S: saveGame（完整紀錄）

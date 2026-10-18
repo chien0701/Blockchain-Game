@@ -1,5 +1,7 @@
 # 資料結構
 
+> **2026-10-02 更新**：下注紀錄與合約 struct 已改為 v3（見 [PROTOCOL_V3.md](./PROTOCOL_V3.md)）；新增 localStorage 鍵 `fairchain_pending`（未完成的下注，含種子）。
+
 > **本專案沒有資料庫伺服器。** 資料存在三個地方：
 > ① 區塊鏈（權威）② localStorage（本地快取）③ React state（執行期）
 >
@@ -16,6 +18,7 @@
 | `fairchain_game_<gameId>` | 單局完整紀錄 | 無 |
 | `fairchain_index` | 最近遊戲摘要陣列 | 50 筆（`MAX_INDEX`） |
 | `fairchain_pref_<key>` | UI 偏好（快速模式、上次押注） | 無 |
+| `fairchain_pending` | 未完成的下注：承諾、**種子、salt**、注型、betId、revealBlock、狀態 signing／placed | 結算或確認過期後移除 |
 
 > 🔴 **鍵名不可隨意更改**——Verifier、Stats、Lobby 都依賴這些鍵讀取。
 
@@ -24,24 +27,35 @@
 由各遊戲頁呼叫 `saveGame(record)` 寫入。**欄位依遊戲類型而異**：
 
 ```js
-// 下注遊戲（Dice / Roulette / Slots / Crash / Limbo / Wheel / Plinko / Revolver）
+// 下注遊戲（v3 起，protocol: "fb3"；由 useBetting.recordFields() 產生）
 {
   gameId:       "game_1730000000000_a1b2c",  // 前端 ID（必要，作為鍵）
   gameType:     "dice",                      // 對應 registry 的 id（必要）
-  chainGameId:  "12",                        // 鏈上 betId；模擬模式為 ''
+  protocol:     "fb3",  rng: 2,              // 協議與亂數映射版本（驗證器依此分派）
+  onChain:      true,                        // bet 模式為 true；模擬為 false
+  chainId:      11155111, contract: "0x…",   // 一局的完整識別 = chainId + contract + chainGameId
+  chainGameId:  "12",                        // 鏈上 betId；模擬為 ''
+  gameTypeId:   0, betType: 1, param: "0",   // 合約的遊戲類型與注型（重算賠付必要）
+  amountWei:    "500000000000000",           // 注金（wei）
   playerSeed:   "0x…",  playerSalt: "0x…",   // 驗證必要
-  dealerSeed:   "0x…",  dealerSalt: "0x…",   // 驗證必要
-  playerCommit: "0x…",  dealerCommit: "0x…", // 驗證必要
-  finalRandom:  "0x…",                       // 驗證必要
-  result:       { winner: "player"|"dealer"|"draw", reason: "…" },  // 必要
-  betAmount:    "0.0005",                    // 僅 bet 模式有值，否則 null
-  payout:       "0.001",                     // 僅 bet 模式有值，否則 null
+  playerCommit: "0x…",
+  revealBlock:  101,                         // 開獎區塊；模擬為 null
+  entropy:      "0x…",                       // 開獎區塊雜湊；模擬為本機亂數
+  finalRandom:  "0x…",
+  outcome:      4,  payoutWei: "1000000000000000",
+  result:       { winner: "player"|"dealer"|"draw", reason: "…" },  // 依淨結果：贏／輸／平
+  betAmount:    "0.0005", payout: "0.001",   // 僅 bet 模式有值（供資金曲線）
   commitTxHash: "0x…",  revealTxHash: "0x…",
-  timestamp:    "2026-09-08T…Z"              // 必要
+  timestamp:    "2026-10-02T…Z"
 }
 
-// 21 點額外含
-  playerHand: [{suit:"♠", value:"A"}, …],  dealerHand: [...]
+// v2 時期的下注紀錄（無 protocol 欄位）：含 dealerSeed/dealerSalt/dealerCommit，
+// 沒有 gameTypeId/betType/outcome → 驗證器只能核對承諾與 finalRandom，結果項標為「未驗證」
+
+// 21 點（GameCommitReveal，雙種子）額外含
+  playerHand: [{suit:"♠", value:"A"}, …],  dealerHand: [...],  rng: 2   // 驗證器以「補牌次數 = playerHand.length − 2」完整重播；無 rng 視為 1
+// 猜數字額外含
+  guesses: [[0,1,2,3], …],  rng: 2                                      // 由 dealerSeed 還原密碼後比對全部猜測
 
 // 挖礦（Mining）——結構不同！
 {
@@ -55,7 +69,8 @@
 |---|---|---|---|
 | `gameId` | **必要** | 儲存鍵、Verifier 查詢、驗證連結 | 改格式會讓舊紀錄查不到 |
 | `gameType` | **必要** | Stats 分類、Lobby 圖示（對照 registry） | 必須與 registry 的 `id` 一致，否則顯示「🎮 未知」 |
-| `playerSeed/Salt`、`dealerSeed/Salt`、`*Commit` | **驗證必要** | Verifier 重算 | 少任一個都無法驗證該局 |
+| `playerSeed/Salt`、`playerCommit`、`entropy`（v3）或 `dealerSeed/Salt/Commit`（21 點、猜數字、舊紀錄） | **驗證必要** | Verifier 重算 | 少任一個都無法驗證該局 |
+| `gameTypeId`、`betType`、`param`、`amountWei`、`outcome`、`payoutWei` | v3 驗證必要 | 重算結果與賠付 | 缺少時結果項為「未驗證」 |
 | `finalRandom` | **必要** | Verifier 重算牌面／結果 | — |
 | `result.winner` | **必要** | Stats 勝率、Lobby 徽章 | 值必須是 `player`/`dealer`/`draw` |
 | `betAmount`、`payout` | 選填 | 索引計算 `bet`／`net` → 資金曲線 | 缺少時視為 0，不進資金曲線 |
@@ -100,26 +115,37 @@
 
 ## 二、鏈上資料結構
 
-### 2-1 FairBet 的 `Bet` struct（`FairBet.sol:18-32`）
+### 2-1 FairBet v3 的 `Bet` struct
 
 ```solidity
 struct Bet {
-    address  player;        // 下注者，只有他能 settle
-    uint8    gameType;      // 0=Dice 1=Coin 2=Roulette 3=Slots 4=Crash
-                            // 5=Limbo 6=Wheel 7=Plinko 8=Revolver
-    uint8    betType;       // 注型；Revolver 時為子彈數(1-5)
+    address  player;        // 下注者，只有他能 settle      ┐
+    uint8    gameType;      // 0=Dice … 8=Revolver           │ 同一個
+    uint8    betType;       // 注型；Revolver 時為子彈數 1-5  │ 儲存槽
+    BetState state;         // 0=None 1=Placed 2=Settled 3=Expired │
+    uint64   revealBlock;   // 下注區塊 + 1（開獎熵來源）    ┘
     uint256  param;         // Crash/Limbo=目標倍率(bps)、Roulette=號碼、其餘=0
     uint256  amount;        // 注金（wei）
     bytes32  playerCommit;  // keccak256(seed‖salt)
-    bytes32  dealerCommit;
-    bytes32  finalRandom;   // 結算後填入
-    uint256  outcome;       // 展示用（骰子點數／崩盤 bps／彈珠槽位…）
-    uint256  payout;        // 實際賠付（wei）
-    BetState state;         // 0=None 1=Placed 2=Settled
-    uint256  placedAt;      // 用於 1 小時超時判斷
-    uint256  settledAt;
+    bytes32  playerSeed;    // ┐
+    bytes32  playerSalt;    // │ 結算時寫入，供第三方以 getBet() 完整驗證
+    bytes32  entropy;       // │ = blockhash(revealBlock)
+    bytes32  finalRandom;   // │ = keccak256(seed‖entropy)
+    uint256  outcome;       // │ 骰子點數／崩盤 bps／彈珠槽位…
+    uint256  payout;        // ┘ 實際賠付（wei，含本金）
 }
+mapping(bytes32 => uint256) public betIdByCommit;   // 承諾 → betId（禁止重用、供恢復）
 ```
+
+| 欄位 | 權威來源 | 何時寫入 | 取得方法 | 遺失後能否恢復 |
+|---|---|---|---|---|
+| 承諾、注型、注金、revealBlock | 合約 storage | 下注 | `getBet()` | 不會遺失 |
+| 種子、salt | **玩家瀏覽器**（結算前）→ 合約 storage（結算後） | 結算 | 結算前：localStorage 的 pending；結算後：`getBet()` | **結算前清除瀏覽器資料 → 無法結算，只能過期** |
+| entropy | 區塊鏈本身 | 結算 | `getBet()`；驗證者另向 RPC 取區塊雜湊比對 | 不會遺失 |
+| finalRandom、outcome、payout | 合約 storage | 結算 | `getBet()` | 不會遺失 |
+| 本地遊戲紀錄、統計 | localStorage（快取） | 每局結束 | 本機 | 清除即消失；鏈上資料不受影響 |
+
+v2 的 struct（含 `dealerCommit`、`placedAt`、`settledAt`，種子不存 storage）見 `src/config/abi.js` 的 `FAIRBET_V2_ABI`。
 
 **`gameType` 的數值順序是合約與前端的契約**——前端遊戲頁硬編碼這些數字
 （如 `Crash.jsx` 傳 `gameType: 4`）。**新增遊戲只能往後追加，不可插入或重排**，
@@ -191,12 +217,13 @@ event PoolFunded(address indexed from, uint256 amount);
 
 ```js
 {
-  playerSeed, playerSalt, playerCommit,   // 掛載時產生，全程不變
-  dealerSeed, dealerSalt, dealerCommit,
+  playerSeed, playerSalt, playerCommit,   // 掛載時產生，全程不變（v3 無莊家種子）
+  revealBlock, entropy,                    // 開獎區塊與其雜湊
   phase,        // 'commit' | 'reveal' | 'ready'
   loading, loadMsg, loadUrl, error, dismissError,
   chainGameId, commitTxHash, revealTxHash, finalRandom,
-  settlement,   // { won, outcome, payoutEth }  僅 bet 模式
+  settlement,   // { outcome, payoutWei, payoutEth, amountWei, net: 'win'|'push'|'lose' }（bet 與 mock 皆有）
+  consistent,   // bet 模式：合約結果、賠付與本地 resolveBet 重算是否一致
   walletEth, poolEth, refreshBalances,
   onChain, isBetting, isMock, isWrongNetwork,
   commit, reveal, quickPlay,

@@ -111,6 +111,11 @@ function CommitPhase({ playerSeed, playerCommit, dealerSeed, dealerCommit,
         </div>
       )}
 
+      <div className="bg-ink-850 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-gray-400 leading-relaxed">
+        本頁只做公平性展示：兩顆種子都在你的瀏覽器產生，技術上可在行動前算出整副牌，因此不支援下注。
+        它示範的是「結果事後可驗證、承諾不能偷換」，不是防作弊。
+      </div>
+
       <div className="grid sm:grid-cols-2 gap-4">
         {/* 玩家 */}
         <div className="bg-ink-850 border border-electric-800 rounded-2xl p-5 space-y-4">
@@ -133,7 +138,7 @@ function CommitPhase({ playerSeed, playerCommit, dealerSeed, dealerCommit,
           </div>
           <HashBox label="明文種子（隱藏）" value={dealerSeed} reveal={false} />
           <HashBox label="承諾 Commit = keccak256(seed‖salt)" value={dealerCommit} reveal={true} />
-          <p className="text-xs text-gray-600">✦ 莊家種子此時已鎖定，揭露前你無法得知其內容</p>
+          <p className="text-xs text-gray-600">✦ 承諾上鏈後莊家種子不能再換，但它也是在你的瀏覽器產生的</p>
         </div>
       </div>
 

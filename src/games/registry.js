@@ -15,7 +15,7 @@ export const GAMES = [
     name:      '21 點',
     en:        'Blackjack',
     icon:      '🃏',
-    tagline:   '雙盲發牌的經典博弈，莊家無法偷看你的牌',
+    tagline:   '用承諾與揭露發牌的 21 點，示範結果可事後驗證',
     concept:   'commit-reveal',
     difficulty: 2,
     status:    'live',

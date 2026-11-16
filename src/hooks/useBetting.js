@@ -12,8 +12,8 @@ import { IS_BETTING, FAIRBET_ADDRESS, SUPPORTED_CHAIN_ID } from '../config/contr
 export function parseError(err) {
   const msg = err?.shortMessage || err?.message || '';
   if (err?.code === 4001 || err?.code === 'ACTION_REJECTED' || msg.includes('user rejected')) return '你取消了交易。';
-  if (msg.includes('insufficient funds')) return '錢包餘額不足（注金 + Gas）。';
-  if (msg.includes('PoolInsufficient')) return '莊家資金池不足以支付此注的最大賠付，請降低注金。';
+  if (msg.includes('insufficient funds')) return '錢包餘額不足（下注金額 + Gas）。';
+  if (msg.includes('PoolInsufficient')) return '資金池不足以支付此注的最大賠付，請降低下注金額。';
   if (msg.includes('CommitReused')) return '這組承諾已用過，請重新開一局。';
   if (msg.includes('RevealWindowClosed')) return '已超過 256 個區塊的揭露期限，這一局只能宣告過期。';
   if (msg.includes('TooEarly')) return '開獎區塊尚未產生，請稍候再試。';

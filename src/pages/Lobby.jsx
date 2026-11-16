@@ -131,7 +131,7 @@ export default function Lobby() {
         <span className="text-xl mt-0.5">ℹ️</span>
         <div className="text-sm text-electric-300 leading-relaxed">
           本平台為<strong>單人對莊家</strong>的公平博弈展示（無多人連線，使用測試網代幣）。
-          8 款下注遊戲由 <strong>FairBet 智能合約</strong>判定並自動賠付，開獎亂數 = 你的種子 ＋ 下注後下一個區塊的雜湊。
+          8 款下注遊戲由 <strong>FairBet 智能合約</strong>判定，並於結算交易中依規則賠付；開獎亂數 = 你的種子 ＋ 下注後下一個區塊的雜湊。
           21 點與猜數字只做公平性展示，玩家可在行動前算出結果，不支援下注。前往{' '}
           <Link to="/verifier" className="underline font-semibold">驗證工具</Link> 核對任一局。
         </div>

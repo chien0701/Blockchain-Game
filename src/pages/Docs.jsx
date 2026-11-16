@@ -8,26 +8,25 @@ import { CONCEPTS } from '../games/concepts';
 /* ── 互動式 Commit-Reveal Demo ──────────────────────────────────── */
 
 function InteractiveDemo() {
-  const [step, setStep] = useState(0); // 0 idle · 1 generated · 2 committed · 3 revealed
+  const [step, setStep] = useState(0);
   const [d, setD] = useState(null);
 
   const generate = () => {
-    const pSeed = generateSeed(), pSalt = generateSalt();
-    const dSeed = generateSeed(), dSalt = generateSalt();
-    setD({
-      pSeed, pSalt, dSeed, dSalt,
-      pCommit: commitHash(pSeed, pSalt),
-      dCommit: commitHash(dSeed, dSalt),
-      final:   combineSeeds(pSeed, dSeed),
-    });
+    const seed = generateSeed(), salt = generateSalt();
+    setD({ seed, salt, commit: commitHash(seed, salt) });
     setStep(1);
+  };
+
+  const reveal = () => {
+    const blockHash = generateSeed();
+    setD((x) => ({ ...x, blockHash, final: combineSeeds(x.seed, blockHash) }));
+    setStep(3);
   };
 
   const reset = () => { setStep(0); setD(null); };
 
-  const pOk = d && verifyCommit(d.pSeed, d.pSalt, d.pCommit);
-  const dOk = d && verifyCommit(d.dSeed, d.dSalt, d.dCommit);
-  const diceResult = d ? (parseInt(d.final.slice(2, 10), 16) % 6) + 1 : null;
+  const ok = d && verifyCommit(d.seed, d.salt, d.commit);
+  const diceResult = d?.final ? (parseInt(d.final.slice(2, 10), 16) % 6) + 1 : null;
 
   const Field = ({ label, value, hidden }) => (
     <div className="space-y-0.5">
@@ -41,11 +40,10 @@ function InteractiveDemo() {
   return (
     <div className="bg-ink-850 border border-electric-900/40 rounded-2xl p-6 space-y-6 shadow-glow-sm">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-white">🧪 親手體驗 Commit-Reveal</h3>
+        <h3 className="text-lg font-bold text-white">🧪 親手體驗：玩家承諾＋未來區塊雜湊</h3>
         <span className="mono-tag text-[10px] text-electric-500">STEP {step} / 3</span>
       </div>
 
-      {/* 進度條 */}
       <div className="flex gap-1.5">
         {[1, 2, 3].map((n) => (
           <div key={n} className={`h-1 flex-1 rounded-full transition-colors
@@ -55,48 +53,44 @@ function InteractiveDemo() {
 
       {step === 0 && (
         <div className="text-center py-8 space-y-4">
-          <p className="text-gray-400 text-sm">點擊下方按鈕，親眼看見一局公平遊戲如何在密碼學保護下進行。</p>
+          <p className="text-gray-400 text-sm">點擊下方按鈕，看一局下注如何從承諾、等待開獎區塊到開獎。</p>
           <button onClick={generate}
             className="bg-electric-600 hover:bg-electric-500 text-white font-semibold rounded-xl
                        px-6 py-3 transition-all hover:scale-105 shadow-glow-sm">
-            ① 生成隨機種子
+            ① 產生種子與 salt
           </button>
         </div>
       )}
 
       {step >= 1 && d && (
         <div className="grid sm:grid-cols-2 gap-4">
-          {/* 玩家 */}
           <div className="bg-ink-900 border border-electric-900/40 rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-2">
-              <span className="text-xl">🧑</span><span className="font-bold text-white text-sm">玩家</span>
+              <span className="text-xl">🧑</span><span className="font-bold text-white text-sm">玩家（本機）</span>
             </div>
-            <Field label="seed_P" value={d.pSeed} />
-            <Field label="salt_P" value={d.pSalt} />
-            {step >= 2 && <Field label="commit_P = keccak256(seed‖salt)" value={d.pCommit} />}
+            <Field label="seed" value={d.seed} />
+            <Field label="salt" value={d.salt} />
+            {step >= 2 && <Field label="commit = keccak256(seed‖salt)" value={d.commit} />}
           </div>
-          {/* 莊家 */}
           <div className="bg-ink-900 border border-electric-900/40 rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-2">
-              <span className="text-xl">🏦</span><span className="font-bold text-white text-sm">莊家</span>
+              <span className="text-xl">⛓️</span><span className="font-bold text-white text-sm">開獎區塊 N+1</span>
             </div>
-            <Field label="seed_D" value={d.dSeed} hidden={step < 3} />
-            <Field label="salt_D" value={d.dSalt} hidden={step < 3} />
-            {step >= 2 && <Field label="commit_D = keccak256(seed‖salt)" value={d.dCommit} />}
+            <Field label="blockhash(N+1)" value={d.blockHash} hidden={step < 3} />
+            {step < 3 && <p className="text-xs text-gray-500">下注時這個區塊還不存在，沒有人知道它的雜湊。</p>}
           </div>
         </div>
       )}
 
-      {/* 階段說明 + 操作 */}
       {step === 1 && (
         <div className="space-y-3">
           <p className="text-sm text-gray-400 leading-relaxed">
-            ✓ 雙方各自生成 32-byte 種子與 salt。現在計算承諾值 <span className="font-mono text-electric-300">keccak256(seed‖salt)</span>，
-            準備提交上鏈——此時對方的種子仍完全保密。
+            ✓ 玩家在本機產生 32-byte 種子與 salt，並計算承諾 <span className="font-mono text-electric-300">keccak256(seed‖salt)</span>。
+            下注時只送出承諾與下注金額，種子留在瀏覽器。
           </p>
           <button onClick={() => setStep(2)}
             className="bg-electric-600 hover:bg-electric-500 text-white font-semibold rounded-xl px-5 py-2.5 transition-colors">
-            ② 提交承諾（鎖定）
+            ② 送出下注與承諾
           </button>
         </div>
       )}
@@ -104,11 +98,11 @@ function InteractiveDemo() {
       {step === 2 && (
         <div className="space-y-3">
           <div className="bg-electric-950/40 border border-electric-800 rounded-xl p-3 text-sm text-electric-300">
-            🔒 承諾已鎖定。注意莊家的 <strong>seed_D 仍被模糊隱藏</strong>——你無法預測結果，莊家也無法在看到你的種子後反悔。
+            🔒 下注已鎖定，合約記下開獎區塊 = 下注區塊 N + 1。此刻區塊 N+1 還沒產生，<strong>包括玩家自己在內，沒有人能算出結果</strong>。
           </div>
-          <button onClick={() => setStep(3)}
+          <button onClick={reveal}
             className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl px-5 py-2.5 transition-colors">
-            ③ 揭露種子並驗證
+            ③ 開獎區塊產生後揭露種子
           </button>
         </div>
       )}
@@ -116,12 +110,11 @@ function InteractiveDemo() {
       {step === 3 && d && (
         <div className="space-y-4 animate-fade-in-up">
           <div className="space-y-2">
-            <CheckLine ok={pOk} label="keccak256(seed_P ‖ salt_P) === commit_P" />
-            <CheckLine ok={dOk} label="keccak256(seed_D ‖ salt_D) === commit_D" />
+            <CheckLine ok={ok} label="keccak256(seed ‖ salt) === commit" />
           </div>
 
           <div className="bg-ink-900 border border-electric-900/40 rounded-xl p-4 space-y-2">
-            <div className="mono-tag text-[9px] text-gray-600 uppercase">final = keccak256(seed_P ‖ seed_D)</div>
+            <div className="mono-tag text-[9px] text-gray-600 uppercase">finalRandom = keccak256(seed ‖ blockhash(N+1))</div>
             <div className="font-mono text-sm text-electric-300 break-all">{shortenHash(d.final, 18)}</div>
             <div className="pt-2 border-t border-electric-900/30 flex items-center justify-between">
               <span className="text-sm text-gray-400">範例：取前 4 bytes 對 6 取模 → 骰子點數</span>
@@ -129,8 +122,9 @@ function InteractiveDemo() {
             </div>
           </div>
 
-          <div className="bg-emerald-950/40 border border-emerald-800 rounded-xl p-3 text-sm text-emerald-300">
-            ✅ 雙方承諾皆驗證通過，結果由雙方種子共同決定，無人能單方面操控。任何第三方都能用相同資料重算出相同的 🎲 {diceResult}。
+          <div className="bg-emerald-950/40 border border-emerald-800 rounded-xl p-3 text-sm text-emerald-300 space-y-1">
+            <p>✅ 承諾驗證通過。結果由玩家下注前承諾的種子，與下注後才產生的區塊雜湊共同決定；任何第三方都能用相同資料重算出 🎲 {diceResult}。</p>
+            <p className="text-xs text-emerald-400/70">示範中的區塊雜湊由本機隨機產生；實際下注時由鏈上區塊提供。前提是玩家不與該區塊的出塊者串通。</p>
           </div>
 
           <button onClick={reset}
@@ -170,8 +164,8 @@ export default function Docs() {
         <h2 className="text-2xl font-bold text-white">為什麼需要它？</h2>
         <p className="text-gray-400 leading-relaxed">
           傳統線上博弈，玩家必須<strong className="text-white">完全信任莊家</strong>——你無法確認牌是不是被動了手腳、
-          開獎是不是在你下注後才決定。FairChain 用 <span className="text-electric-300 font-semibold">Commit-Reveal 雙盲協議</span>
-          ，把「信任」變成「可驗證的數學」。
+          開獎是不是在你下注後才決定。FairChain 以 <span className="text-electric-300 font-semibold">Commit-Reveal（承諾－揭露）結合未來區塊雜湊</span>
+          開獎，再由智能合約依規則判定與賠付，把「信任」變成「可重算的數學」。
         </p>
       </section>
 
@@ -182,9 +176,9 @@ export default function Docs() {
       <section className="space-y-4">
         <h2 className="text-2xl font-bold text-white">三個步驟</h2>
         {[
-          ['Commit 承諾', '雙方各自生成隨機 seed 與 salt，提交 keccak256(seed‖salt) 至鏈上。承諾一旦寫入便無法竄改，且看不出原始種子。'],
-          ['Reveal 揭露', '雙方公開明文 seed 與 salt，合約重算 keccak256 比對承諾。只要有人造假，驗證立刻失敗。'],
-          ['Verify 驗證', '合約合併雙方種子 final = keccak256(seed_P‖seed_D) 作為隨機源。任何人都能從鏈上讀取資料、重算、比對。'],
+          ['Commit 承諾', '玩家在本機產生隨機 seed 與 salt，只把 keccak256(seed‖salt) 連同下注金額送上合約；合約記下開獎區塊 = 下注區塊 + 1。'],
+          ['Reveal 揭露', '開獎區塊產生後，玩家送出結算交易揭露 seed 與 salt；合約重算 keccak256 比對承諾，再以 keccak256(seed‖開獎區塊雜湊) 開獎並依規則賠付。'],
+          ['Verify 驗證', '任何人都能讀取鏈上的承諾、種子、熵與結果，另向 RPC 取得區塊雜湊，重算承諾、熵、finalRandom、結果、賠付五項；缺任何一項只會顯示「未完成」。'],
         ].map(([title, desc], i) => (
           <div key={title} className="flex gap-4 bg-ink-850 border border-electric-900/40 rounded-xl p-4">
             <span className="mono-tag text-electric-500 text-lg shrink-0">{`0${i + 1}`}</span>

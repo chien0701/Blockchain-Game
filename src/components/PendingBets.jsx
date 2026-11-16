@@ -63,7 +63,7 @@ export default function PendingBets() {
     <div className="bg-amber-950/30 border border-amber-800 rounded-2xl p-5 space-y-3">
       <div className="font-bold text-amber-200">⏳ 未完成的下注（{items.length}）</div>
       <p className="text-xs text-amber-300/80">
-        這些局已送出下注但還沒結算。種子保存在本瀏覽器，請在開獎區塊後 {WINDOW} 個區塊內結算，逾期注金會留在資金池。
+        這些局已送出下注但還沒結算。種子保存在本瀏覽器，請在開獎區塊後 {WINDOW} 個區塊內結算，逾期的下注金額會留在資金池。
       </p>
       {items.map((p) => {
         const sameContract = p.contract?.toLowerCase() === FAIRBET_ADDRESS.toLowerCase() && p.chainId === SUPPORTED_CHAIN_ID;

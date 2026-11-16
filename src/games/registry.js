@@ -35,7 +35,7 @@ export const GAMES = [
     name:      '骰子 / 猜硬幣',
     en:        'Dice & Coin',
     icon:      '🎲',
-    tagline:   '雙方種子合併開獎，最純粹的可驗證隨機',
+    tagline:   '種子承諾＋未來區塊雜湊開獎，最純粹的可驗證隨機',
     concept:   'pure-random',
     difficulty: 1,
     status:    'live',

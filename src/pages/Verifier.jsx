@@ -42,7 +42,7 @@ const VERDICT = {
   verified:         ['✅', '驗證通過', '每一項證據都已取得並重算吻合', 'bg-emerald-950/50 border-emerald-700', 'text-emerald-400'],
   failed:           ['🚨', '檢測到異常', '至少一項紀錄與重算結果不符', 'bg-red-950/50 border-red-800', 'text-red-400'],
   incomplete:       ['⚪', '驗證未完成', '已取得的部分吻合，但缺少證據的項目沒有驗證，不能視為通過', 'bg-amber-950/40 border-amber-700', 'text-amber-300'],
-  expired:          ['⌛', '此局已過期', '玩家未在期限內揭露，沒有開獎，注金留在資金池', 'bg-ink-800/60 border-gray-700', 'text-gray-400'],
+  expired:          ['⌛', '此局已過期', '玩家未在期限內揭露，沒有開獎，下注金額留在資金池', 'bg-ink-800/60 border-gray-700', 'text-gray-400'],
   pending:          ['⏳', '尚未結算', '已下注但尚未揭露，目前沒有結果可驗證', 'bg-ink-800/60 border-gray-700', 'text-gray-400'],
   'not-found':      ['❔', '查無此局', '請確認版本、合約地址與編號', 'bg-ink-800/60 border-gray-700', 'text-gray-400'],
   'not-applicable': ['ℹ️', '不適用', '此紀錄不使用承諾協議', 'bg-ink-800/60 border-gray-700', 'text-gray-400'],
@@ -413,7 +413,7 @@ function BetVerifier({ initialId, initialAddress }) {
             { label: '遊戲',       value: GAME_TYPE_NAMES[data.gameType] ?? `#${data.gameType}` },
             { label: '下注者',     value: shortenHash(data.player, 8) },
             { label: '注型／參數', value: `${data.betType} / ${data.param}` },
-            { label: '注金',       value: `${data.amountEth} ETH` },
+            { label: '下注金額',   value: `${data.amountEth} ETH` },
             { label: '賠付',       value: `${data.payoutEth} ETH` },
             result.verdict !== 'expired' && result.verdict !== 'pending'
               ? { label: '開獎結果', value: describeOutcome(data.gameType, data.outcome) } : null,

@@ -11,23 +11,23 @@ gsap.registerPlugin(useGSAP, ScrollTrigger);
 const STEPS = [
   {
     tag: 'STEP 01', icon: '🔒', title: '承諾 Commit',
-    desc: '玩家與莊家各自生成隨機種子與 salt，提交 keccak256(seed‖salt) 至區塊鏈。雙方底牌在不知道對方的情況下被永久鎖定。',
+    desc: '玩家在本機產生隨機種子與 salt，只把 keccak256(seed‖salt) 連同下注金額送上合約；合約記下開獎區塊 = 下注區塊 + 1。',
   },
   {
     tag: 'STEP 02', icon: '🔓', title: '揭露 Reveal',
-    desc: '雙方公開明文種子與 salt，合約驗證承諾是否吻合。兩個種子合併再次雜湊，產生誰都無法單獨操控的隨機數。',
+    desc: '開獎區塊產生後，玩家揭露種子；合約驗證承諾，以 keccak256(seed‖開獎區塊雜湊) 開獎並依規則賠付。下注當下該區塊還不存在，無法預先算出結果。',
   },
   {
     tag: 'STEP 03', icon: '✅', title: '驗證 Verify',
-    desc: '任何人都能直接從鏈上讀取這局的所有參數，在本地重新計算。結果完全吻合，即證明莊家從未作弊。',
+    desc: '任何人都能從鏈上讀取這一局的所有參數，另向 RPC 取得區塊雜湊，在本地重算五項證據。全部吻合才算通過。',
   },
 ];
 
 const FEATURES = [
-  { icon: '🚫', title: '防止上帝視角', desc: '莊家在揭露前無法得知玩家種子，完全無法預先計算結果。' },
-  { icon: '📋', title: '不可竄改紀錄', desc: '所有承諾透過交易寫入區塊鏈，全球節點共同記錄。' },
+  { icon: '🚫', title: '無法預選結果', desc: '下注時開獎區塊尚未產生，玩家、網站與合約擁有者都無法預先選出必勝的注（前提：玩家不與出塊者串通）。' },
+  { icon: '📋', title: '鏈上紀錄', desc: '承諾、種子與結果寫入區塊鏈，達最終確定後難以竄改。' },
   { icon: '🌐', title: '任意人可驗證', desc: '開源邏輯讓任何驗證者都能直接從鏈上重算比對。' },
-  { icon: '🧂', title: 'Salt 盲化保護', desc: '每個承諾混入隨機 salt，杜絕彩虹表反推種子。' },
+  { icon: '🧂', title: 'Salt 盲化保護', desc: '每個承諾混入隨機 salt，避免以字典或彩虹表反推種子。' },
 ];
 
 export default function Home() {
@@ -79,8 +79,8 @@ export default function Home() {
           </h1>
           <p data-hero className="text-xl text-electric-300 font-medium">區塊鏈公平遊戲驗證系統</p>
           <p data-hero className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed">
-            透過密碼學承諾機制與去中心化審計，確保每一局遊戲的結果
-            都由雙方共同決定——任何人都可以公開驗證，沒有人能單方面作弊。
+            以玩家承諾結合未來區塊雜湊開獎，由智能合約依規則判定與賠付——
+            任何人都能用鏈上資料重算驗證。
           </p>
 
           <div data-hero className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
@@ -103,7 +103,7 @@ export default function Home() {
       <section className="py-20 px-4 border-t border-electric-900/30">
         <div className="max-w-5xl mx-auto">
           <h2 data-reveal className="text-3xl font-bold text-center text-white mb-2">運作原理</h2>
-          <p data-reveal className="text-center text-gray-500 mb-12 text-sm">三個步驟確保絕對公平</p>
+          <p data-reveal className="text-center text-gray-500 mb-12 text-sm">三個步驟，任何人都能重算驗證</p>
 
           <div className="grid sm:grid-cols-3 gap-6">
             {STEPS.map((s) => (

@@ -122,7 +122,7 @@ export function SettlementBanner({ settlement, amountEth }) {
   return (
     <div className="bg-red-950/40 border border-red-800 rounded-xl p-4 text-center">
       <span className="text-red-300 font-bold text-lg">
-        {Number(payoutEth) > 0 ? `💸 合約返還 ${payoutEth} ETH，淨輸 ${diff.replace('-', '')} ETH` : `💸 注金 ${amountEth} ETH 已進入莊家資金池`}
+        {Number(payoutEth) > 0 ? `💸 合約返還 ${payoutEth} ETH，淨輸 ${diff.replace('-', '')} ETH` : `💸 下注金額 ${amountEth} ETH 已進入資金池`}
       </span>
     </div>
   );
@@ -172,7 +172,7 @@ export default function CommitRevealFlow({ cr, title, revealLabel = '揭露並�
           </div>
 
           {cr.isBetting
-            ? <div className="bg-electric-950/50 border border-electric-700 rounded-xl px-4 py-2.5 text-sm text-electric-300">🎰 真實下注模式（FairBet v3）— 注金實際進出合約，由合約判定並自動賠付</div>
+            ? <div className="bg-electric-950/50 border border-electric-700 rounded-xl px-4 py-2.5 text-sm text-electric-300">🎰 真實下注模式（FairBet v3）— 下注金額實際進出合約，由合約於結算交易中判定並依規則賠付</div>
             : <div className="bg-amber-950/40 border border-amber-800 rounded-xl px-4 py-2.5 text-sm text-amber-300">🎭 模擬模式（{cr.mockReason}）— 流程相同，但熵由本機產生、未上鏈、沒有金流</div>}
 
           {betSlot}
@@ -225,7 +225,7 @@ export default function CommitRevealFlow({ cr, title, revealLabel = '揭露並�
 
           {cr.isBetting && chainGameId && (
             <div className="bg-ink-850 border border-gray-700 rounded-xl p-4 font-mono text-xs space-y-2">
-              <div className="text-gray-500">✅ 下注已上鏈，注型與注金已鎖定</div>
+              <div className="text-gray-500">✅ 下注已上鏈，注型與下注金額已鎖定</div>
               {commitTxHash && (
                 <div className="flex justify-between"><span className="text-gray-600">下注 TX</span>
                   <a href={getTxUrl(commitTxHash)} target="_blank" rel="noreferrer" className="text-electric-400">{shortenHash(commitTxHash, 8)} ↗</a></div>

@@ -5,7 +5,7 @@ sequenceDiagram
   participant T as contract.js
   participant W as MetaMask
   participant F as FairBet v3
-  G->>H: quickPlay(注型, 參數, 注金)
+  G->>H: quickPlay(注型, 參數, 下注金額)
   H->>W: 取得簽署者
   H->>S: savePendingBet（承諾、種子、salt）
   H->>T: placeBetOnChain(commit)

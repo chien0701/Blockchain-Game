@@ -3,7 +3,7 @@ sequenceDiagram
   participant C as FairBet v3 合約
   participant B as 區塊鏈（出塊者）
   Note over P: 產生 seed、salt<br/>commit = keccak256(seed‖salt)
-  P->>C: placeBet(注型, 參數, commit)＋注金
+  P->>C: placeBet(注型, 參數, commit)＋下注金額
   Note over C: 交易進入區塊 N<br/>鎖定最大賠付<br/>revealBlock = N + 1
   Note over P,B: 此時區塊 N + 1 尚未產生 → 沒有人能預知結果
   Note over B: 產生區塊 N + 1<br/>（其雜湊此時才確定）
